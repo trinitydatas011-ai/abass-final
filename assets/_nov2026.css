@@ -1,0 +1,284 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Serif+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Serif+Kannada:wght@400;500;600;700&display=swap');
+
+/* ==========================================================================
+   ABASS — WEBSITE CORRECTIONS (19 Nov 2026)
+   Loaded after _devotional.css. Contains the styling for:
+   03 Telugu / Kannada typography + 5-language header
+   01/02/04/10 event cards (Location / Date / Maps / details view)
+   06 layouts that used to hold photos
+   09 Latest Updates panel
+   ========================================================================== */
+
+
+/* ---------- 03. five-language switcher: keep the header on one line ---------- */
+.lang-switch{ flex-wrap:nowrap; }
+.lang-switch button{ white-space:nowrap; }
+@media (max-width:1380px){
+  .lang-switch button{ padding:6px 8px; font-size:12px; }
+}
+@media (max-width:620px){
+  .header-inner{ flex-wrap:wrap; row-gap:8px; }
+  .header-actions{ flex-wrap:wrap; justify-content:flex-end; row-gap:6px; }
+  .lang-switch button{ padding:6px 7px; font-size:11.5px; }
+}
+@media (max-width:420px){
+  .lang-switch button{ padding:5px 5px; font-size:10.5px; }
+}
+
+/* ---------- 01/02/04. event cards ---------- */
+.event-info{ display:flex; flex-direction:column; gap:12px; }
+.event-info-row{ display:flex; flex-direction:column; gap:4px; }
+.event-info-label{
+  font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2);
+}
+.event-info-value{
+  display:flex; align-items:flex-start; gap:6px; font-size:13px; font-weight:600; color:var(--maroon); line-height:1.4;
+}
+.event-ico{ display:inline-flex; flex:none; margin-top:2px; }
+.event-ico svg{ width:14px; height:14px; }
+.event-map-link{
+  display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-top:4px;
+  font-size:12px; font-weight:600; color:var(--navy); text-decoration:none;
+  padding:5px 10px; border:1px solid var(--line); border-radius:999px; background:#fff;
+  transition:background .2s, border-color .2s, color .2s;
+}
+.event-map-link:hover,.event-map-link:focus-visible{ background:var(--maroon); border-color:var(--maroon); color:#fff; }
+.event-map-link .event-ico svg{ width:12px; height:12px; }
+.event-body .event-desc{ margin:0; }
+.event-details-btn{
+  align-self:flex-start; display:inline-flex; align-items:center; gap:6px; margin-top:2px;
+  background:none; border:0; padding:4px 0; cursor:pointer; font:inherit; font-size:13px; font-weight:700;
+  color:var(--maroon); border-bottom:1.5px solid transparent;
+}
+.event-details-btn:hover,.event-details-btn:focus-visible{ border-bottom-color:var(--maroon); }
+.event-details-arrow{ font-size:17px; line-height:1; }
+.event-card-other .event-info-value{ color:var(--muted-2); font-weight:500; }
+
+/* expanded details view */
+body.event-modal-open{ overflow:hidden; }
+.event-modal{ position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
+.event-modal[hidden]{ display:none; }
+.event-modal-backdrop{ position:absolute; inset:0; background:rgba(10,23,41,.6); }
+.event-modal-panel{
+  position:relative; width:100%; max-width:660px; max-height:calc(100vh - 32px); overflow:auto;
+  background:var(--paper); border-radius:14px; box-shadow:0 30px 80px -20px rgba(10,23,41,.6); outline:none;
+}
+.event-modal-head{
+  position:sticky; top:0; z-index:2; display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  background:var(--maroon); color:var(--cream); padding:16px 20px;
+}
+.event-modal-title{ font-family:'Cinzel',serif; font-weight:700; font-size:19px; line-height:1.25; text-transform:uppercase; overflow-wrap:anywhere; }
+.event-modal-close{
+  flex:none; width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.55);
+  background:transparent; color:#fff; font-size:22px; line-height:1; cursor:pointer;
+}
+.event-modal-close:hover,.event-modal-close:focus-visible{ background:rgba(255,255,255,.2); }
+.event-modal-body{ padding:20px; display:flex; flex-direction:column; gap:14px; }
+.event-details-text{ display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--line); padding-top:14px; }
+.event-details-para{ margin:0; font-size:14.5px; line-height:1.65; color:var(--ink); }
+.event-details-heading{ margin:6px 0 0; font-family:'Cinzel',serif; font-size:15.5px; color:var(--navy); }
+.event-details-list{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:7px; font-size:14.5px; line-height:1.6; color:var(--ink); }
+.event-details-list li::marker{ color:var(--maroon); }
+.event-modal-map{ border-radius:10px; overflow:hidden; border:1px solid var(--line); background:#fff; }
+.event-modal-map iframe{ display:block; width:100%; height:240px; border:0; }
+
+/* ---------- 06. layouts that used to hold photos ---------- */
+.seva-panel{ grid-template-columns:1fr !important; max-width:760px; margin-left:auto; margin-right:auto; }
+.library-top{ justify-content:flex-start; }
+.donate-banner{ grid-template-columns:1fr !important; }
+.event-cat-card{ cursor:default; }
+.event-cat-body{ padding-top:22px; }
+.member-directory-card-nophoto{ padding-top:20px; }
+
+/* ---------- 09. Latest Updates panel (hero, right column) ---------- */
+.hero-updates-wrap{ max-width:none !important; width:100%; margin:0 !important; }
+.latest-updates{
+  position:relative; z-index:1; background:#fff; border:1px solid var(--line); border-radius:16px;
+  box-shadow:0 24px 50px -26px rgba(14,30,58,.4); overflow:hidden; display:flex; flex-direction:column;
+}
+.lu-head{
+  display:flex; align-items:center; gap:10px; padding:12px 16px; background:var(--navy); color:var(--cream);
+}
+.lu-title{ margin:0; flex:1; font-family:'Cinzel',serif; font-size:16px; color:var(--gold-soft) !important; -webkit-text-fill-color:currentColor; background:none; letter-spacing:.04em; }
+.lu-title::after{ display:none !important; }
+.lu-count{ font-size:11.5px; opacity:.85; }
+.lu-toggle{
+  width:28px; height:28px; border-radius:50%; border:1px solid rgba(228,200,136,.6); background:transparent;
+  color:var(--gold-soft); font-size:12px; cursor:pointer; line-height:1;
+}
+.lu-toggle[hidden]{ display:none; }
+.lu-toggle:hover,.lu-toggle:focus-visible{ background:rgba(255,255,255,.15); }
+.lu-scroll{ height:min(420px,58vh); min-height:260px; overflow-y:auto; overscroll-behavior:contain; padding:6px 14px 10px; scrollbar-width:thin; scrollbar-color:var(--gold) transparent; }
+.lu-scroll:focus-visible{ outline:2px solid var(--maroon); outline-offset:-2px; }
+.lu-list{ list-style:none; margin:0; padding:0; }
+.lu-item{ position:relative; display:flex; gap:10px; padding:12px 0; border-bottom:1px dashed var(--line); }
+.lu-item:last-child{ border-bottom:0; }
+.lu-badge{
+  flex:none; align-self:flex-start; margin-top:2px; background:#d32f4a; color:#fff; font-size:9.5px; font-weight:800;
+  letter-spacing:.06em; padding:2px 6px; border-radius:4px; text-transform:uppercase;
+}
+.lu-body{ min-width:0; }
+.lu-date{ display:block; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted-2); margin-bottom:2px; }
+.lu-text{ margin:0; font-size:13.5px; line-height:1.55; color:var(--ink); overflow-wrap:anywhere; }
+.lu-link{ color:var(--royal); font-weight:700; text-decoration:underline; }
+.lu-empty{ padding:24px 4px; font-size:13.5px; color:var(--muted); text-align:center; }
+
+@media (max-width:900px){
+  .lu-scroll{ height:320px; }
+}
+@media (prefers-reduced-motion:reduce){
+  .latest-updates *{ scroll-behavior:auto !important; }
+}
+
+/* ---------- 03. Telugu & Kannada typography ---------- */
+/* ============ TELUGU NAVIGATION & TYPOGRAPHY ============ */
+body.lang-te{
+  font-family:'Noto Sans Telugu','Work Sans',sans-serif;
+}
+body.lang-te *{
+  letter-spacing:0 !important;
+}
+body.lang-te *:not(h1):not(h2):not(h3):not(h4):not(.display){
+  font-family:'Noto Sans Telugu','Work Sans',sans-serif;
+}
+body.lang-te h1,
+body.lang-te h2,
+body.lang-te h3,
+body.lang-te h4,
+body.lang-te .display{
+  font-family:'Noto Serif Telugu','Noto Sans Telugu',serif;
+  letter-spacing:0;
+}
+body.lang-te .header-actions{
+  gap:6px;
+}
+body.lang-te .main-nav{ gap:1px; max-width:none; }
+body.lang-te .main-nav a{ font-size:11.5px; }
+body.lang-te .lang-switch button{ padding:5px 4px; font-size:10.5px; }
+body.lang-te .header-actions > .btn{ padding:7px; font-size:11px; }
+body.lang-te .lang-switch{ flex:none; }
+body.lang-te .nav-toggle{
+  flex:none;
+  width:38px;
+  height:38px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+
+@media (max-width: 1600px){
+  body.lang-te .header-inner{
+    display:flex;
+    position:relative;
+    justify-content:space-between;
+    gap:clamp(8px,1vw,18px);
+  }
+  body.lang-te .main-nav{ display:none; }
+  body.lang-te .nav-toggle{ display:flex; }
+  body.lang-te .header-actions{ margin-left:auto; }
+  body.lang-te.mobile-nav-open .main-nav{ display:flex; }
+}
+@media (max-width: 620px){
+  body.lang-te .header-inner{ gap:6px; }
+  body.lang-te .brand{ gap:4px; }
+  body.lang-te .brand img{ height:42px; }
+  body.lang-te .header-actions{ gap:4px; }
+  body.lang-te .lang-switch button{ padding:5px 4px; font-size:11px; }
+  body.lang-te .header-actions > .btn{
+    display:inline-flex;
+    max-width:96px;
+    padding:6px 7px;
+    font-size:11px;
+    line-height:1.2;
+    text-align:center;
+    white-space:normal;
+  }
+}
+@media (max-width: 400px){
+  body.lang-te .header-inner{ padding:10px; gap:4px; }
+  body.lang-te .brand img{ height:38px; }
+  body.lang-te .brand-text .name{ font-size:16px; }
+  body.lang-te .header-actions{ gap:3px; }
+  body.lang-te .lang-switch button{ padding:5px 3px; font-size:10px; }
+  body.lang-te .header-actions > .btn{ max-width:82px; padding:5px; font-size:10px; }
+}
+
+/* ============ KANNADA NAVIGATION & TYPOGRAPHY ============ */
+body.lang-kn{
+  font-family:'Noto Sans Kannada','Work Sans',sans-serif;
+}
+body.lang-kn *{
+  letter-spacing:0 !important;
+}
+body.lang-kn *:not(h1):not(h2):not(h3):not(h4):not(.display){
+  font-family:'Noto Sans Kannada','Work Sans',sans-serif;
+}
+body.lang-kn h1,
+body.lang-kn h2,
+body.lang-kn h3,
+body.lang-kn h4,
+body.lang-kn .display{
+  font-family:'Noto Serif Kannada','Noto Sans Kannada',serif;
+  letter-spacing:0;
+}
+body.lang-kn .header-actions{
+  gap:6px;
+}
+body.lang-kn .main-nav{ gap:1px; max-width:none; }
+body.lang-kn .main-nav a{ font-size:11.5px; }
+body.lang-kn .lang-switch button{ padding:5px 4px; font-size:10.5px; }
+body.lang-kn .header-actions > .btn{ padding:7px; font-size:11px; }
+body.lang-kn .lang-switch{ flex:none; }
+body.lang-kn .nav-toggle{
+  flex:none;
+  width:38px;
+  height:38px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+
+@media (max-width: 1600px){
+  body.lang-kn .header-inner{
+    display:flex;
+    position:relative;
+    justify-content:space-between;
+    gap:clamp(8px,1vw,18px);
+  }
+  body.lang-kn .main-nav{ display:none; }
+  body.lang-kn .nav-toggle{ display:flex; }
+  body.lang-kn .header-actions{ margin-left:auto; }
+  body.lang-kn.mobile-nav-open .main-nav{ display:flex; }
+}
+@media (max-width: 620px){
+  body.lang-kn .header-inner{ gap:6px; }
+  body.lang-kn .brand{ gap:4px; }
+  body.lang-kn .brand img{ height:42px; }
+  body.lang-kn .header-actions{ gap:4px; }
+  body.lang-kn .lang-switch button{ padding:5px 4px; font-size:11px; }
+  body.lang-kn .header-actions > .btn{
+    display:inline-flex;
+    max-width:96px;
+    padding:6px 7px;
+    font-size:11px;
+    line-height:1.2;
+    text-align:center;
+    white-space:normal;
+  }
+}
+@media (max-width: 400px){
+  body.lang-kn .header-inner{ padding:10px; gap:4px; }
+  body.lang-kn .brand img{ height:38px; }
+  body.lang-kn .brand-text .name{ font-size:16px; }
+  body.lang-kn .header-actions{ gap:3px; }
+  body.lang-kn .lang-switch button{ padding:5px 3px; font-size:10px; }
+  body.lang-kn .header-actions > .btn{ max-width:82px; padding:5px; font-size:10px; }
+}
+
+/* ---------- fixes found in testing ---------- */
+.event-cards-grid .event-date-badge{ min-height:104px; }
+.event-details-list{ list-style:disc; }
+.event-modal-body .event-desc{ color:var(--ink); font-size:14.5px; line-height:1.6; margin:0; }
+.event-modal-body .event-info{ gap:10px; }

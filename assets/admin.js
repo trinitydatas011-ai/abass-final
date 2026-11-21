@@ -1,0 +1,1608 @@
+/**
+ * ABASS Admin Panel JavaScript
+ * Supabase Auth, Row Level Security verification, and CRUD operations for:
+ * 1. Events (Start/End Date, Recurring, Location, Published status)
+ * 2. Gallery (Image upload to Supabase Storage bucket 'gallery', Categories, Bilingual fields)
+ * 3. Trustees & Committee (member categories, profile fields, photo uploads)
+ */
+
+(function () {
+  'use strict';
+
+  // --- STATE ---
+  var state = {
+    user: null,
+    isAdmin: false,
+    isRecoveringPassword: false,
+    activeTab: 'dashboard',
+    events: [],
+    gallery: [],
+    updates: [],
+    members: [],
+    memberCategoryFilter: 'all',
+    memberSearchQuery: ''
+  };
+
+  var GALLERY_LIMIT = 25;   // correction 05
+
+  // Friendly hint when the database migration has not been run yet
+  function dbErrorMessage(err, what) {
+    var msg = (err && err.message) ? err.message : String(err);
+    if (/column|schema cache|does not exist|relation/i.test(msg)) {
+      return 'Could not save ' + what + ': the database is missing the new fields. Run supabase-migration-2026-11.sql in the Supabase SQL Editor first. (' + msg + ')';
+    }
+    return 'Failed to save ' + what + ': ' + msg;
+  }
+
+  function getClient() {
+    return window.ABASS_API ? window.ABASS_API.getClient() : null;
+  }
+
+  // --- TOAST NOTIFICATIONS ---
+  function showToast(message, type) {
+    type = type || 'success';
+    var container = document.getElementById('toastContainer');
+    if (!container) return;
+    var t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.innerHTML = (type === 'success' ? '✓ ' : '✕ ') + message;
+    container.appendChild(t);
+    setTimeout(function () {
+      t.style.opacity = '0';
+      setTimeout(function () { t.remove(); }, 300);
+    }, 4000);
+  }
+
+  // --- AUTHENTICATION & PERMISSIONS ---
+  async function checkAuth() {
+    var client = getClient();
+    if (!client) {
+      showConfigScreen('Please configure your Supabase URL and Public Anon Key below.');
+      return;
+    }
+
+    if (state.isRecoveringPassword || (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1)) {
+      state.isRecoveringPassword = true;
+      showResetPasswordScreen();
+      return;
+    }
+
+    try {
+      var sessionRes = await client.auth.getSession();
+      var session = sessionRes.data ? sessionRes.data.session : null;
+
+      if (!session || !session.user) {
+        showAuthScreen();
+        return;
+      }
+
+      state.user = session.user;
+
+      // Check admin authorization via admin_users table (enforced by RLS)
+      var adminRes = await client
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (adminRes.error || !adminRes.data) {
+        state.isAdmin = false;
+        showAccessDeniedScreen(session.user.email);
+        return;
+      }
+
+      state.isAdmin = true;
+      showDashboardScreen();
+    } catch (err) {
+      console.error('Auth check error:', err);
+      showAuthScreen();
+    }
+  }
+
+  function showAuthScreen() {
+    document.getElementById('authView').style.display = 'flex';
+    document.getElementById('accessDeniedView').style.display = 'none';
+    document.getElementById('adminShell').style.display = 'none';
+    var resetView = document.getElementById('resetPasswordView');
+    if (resetView) resetView.style.display = 'none';
+  }
+
+  function showAccessDeniedScreen(email) {
+    document.getElementById('authView').style.display = 'none';
+    document.getElementById('accessDeniedView').style.display = 'flex';
+    document.getElementById('adminShell').style.display = 'none';
+    var resetView = document.getElementById('resetPasswordView');
+    if (resetView) resetView.style.display = 'none';
+    document.getElementById('deniedUserEmail').textContent = email || 'Unknown';
+  }
+
+  function showDashboardScreen() {
+    document.getElementById('authView').style.display = 'none';
+    document.getElementById('accessDeniedView').style.display = 'none';
+    var resetView = document.getElementById('resetPasswordView');
+    if (resetView) resetView.style.display = 'none';
+    document.getElementById('adminShell').style.display = 'flex';
+    var emailStr = state.user ? state.user.email : '';
+    document.getElementById('adminUserEmail').textContent = emailStr;
+    var mobileEmail = document.getElementById('adminUserEmailMobile');
+    if (mobileEmail) mobileEmail.textContent = emailStr;
+    switchTab('dashboard');
+    loadAllData();
+  }
+
+  function showResetPasswordScreen() {
+    document.getElementById('authView').style.display = 'none';
+    document.getElementById('accessDeniedView').style.display = 'none';
+    document.getElementById('adminShell').style.display = 'none';
+    var resetView = document.getElementById('resetPasswordView');
+    if (resetView) resetView.style.display = 'flex';
+
+    var form = document.getElementById('resetPasswordForm');
+    if (form) {
+      form.style.display = 'flex';
+      form.reset();
+    }
+    var errEl = document.getElementById('resetPasswordError');
+    if (errEl) {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+    }
+    var successEl = document.getElementById('resetPasswordSuccess');
+    if (successEl) {
+      successEl.style.display = 'none';
+    }
+    var submitBtn = document.getElementById('resetPasswordSubmitBtn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Update Password';
+    }
+  }
+
+  function showConfigScreen(msg) {
+    showAuthScreen();
+    var notice = document.getElementById('authConfigNotice');
+    if (notice) {
+      notice.textContent = msg || '';
+      notice.style.display = 'block';
+    }
+  }
+
+  // --- LOGIN HANDLER ---
+  async function handleLogin(e) {
+    e.preventDefault();
+    var client = getClient();
+    if (!client) {
+      alert('Supabase client is not configured yet. Please enter your Supabase URL and Anon Key.');
+      return;
+    }
+
+    var email = document.getElementById('loginEmail').value.trim();
+    var password = document.getElementById('loginPassword').value;
+    var btn = document.getElementById('loginSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Authenticating...';
+
+    try {
+      var res = await client.auth.signInWithPassword({ email: email, password: password });
+      if (res.error) {
+        alert('Login failed: ' + res.error.message);
+        btn.disabled = false;
+        btn.textContent = 'Sign In to Admin Panel';
+        return;
+      }
+      checkAuth();
+    } catch (err) {
+      alert('Login error: ' + (err.message || err));
+      btn.disabled = false;
+      btn.textContent = 'Sign In to Admin Panel';
+    }
+  }
+
+  // --- LOGOUT HANDLER ---
+  async function handleLogout() {
+    var client = getClient();
+    if (client) {
+      await client.auth.signOut();
+    }
+    state.user = null;
+    state.isAdmin = false;
+    showToast('Signed out successfully.');
+    showAuthScreen();
+  }
+
+  // --- PASSWORD RECOVERY HANDLERS ---
+  async function handleForgotPassword(e) {
+    if (e) e.preventDefault();
+    var client = getClient();
+    if (!client) {
+      alert('Supabase client is not configured yet. Please enter your Supabase URL and Anon Key.');
+      return;
+    }
+
+    var emailInput = document.getElementById('loginEmail');
+    var email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : 'rithikap099@gmail.com';
+    if (emailInput && !emailInput.value.trim()) {
+      emailInput.value = email;
+    }
+
+    var forgotLink = document.getElementById('forgotPasswordLink');
+    if (forgotLink) {
+      forgotLink.textContent = 'Sending reset email...';
+      forgotLink.style.pointerEvents = 'none';
+    }
+
+    try {
+      var res = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: 'http://localhost:3000/admin.html'
+      });
+
+      if (res.error) {
+        alert('Failed to send reset email: ' + res.error.message);
+      } else {
+        showToast('Password reset link sent to ' + email, 'success');
+        var notice = document.getElementById('authConfigNotice');
+        if (notice) {
+          notice.textContent = 'Password reset link sent to ' + email + '. Check your inbox to set a new password.';
+          notice.style.background = '#e8f7ee';
+          notice.style.borderColor = '#86efac';
+          notice.style.color = '#166534';
+          notice.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      alert('Error sending reset email: ' + (err.message || err));
+    } finally {
+      if (forgotLink) {
+        forgotLink.textContent = 'Forgot Password?';
+        forgotLink.style.pointerEvents = 'auto';
+      }
+    }
+  }
+
+  async function handleResetPassword(e) {
+    if (e) e.preventDefault();
+    var client = getClient();
+    if (!client) {
+      alert('Supabase client is not configured.');
+      return;
+    }
+
+    var newPassword = document.getElementById('newPassword').value;
+    var confirmPassword = document.getElementById('confirmNewPassword').value;
+    var errorEl = document.getElementById('resetPasswordError');
+    var submitBtn = document.getElementById('resetPasswordSubmitBtn');
+
+    if (errorEl) {
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      if (errorEl) {
+        errorEl.textContent = 'Password must be at least 6 characters.';
+        errorEl.style.display = 'block';
+      }
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      if (errorEl) {
+        errorEl.textContent = 'Passwords do not match. Please re-enter.';
+        errorEl.style.display = 'block';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Updating Password...';
+    }
+
+    try {
+      var res = await client.auth.updateUser({ password: newPassword });
+      if (res.error) {
+        if (errorEl) {
+          errorEl.textContent = 'Password update failed: ' + res.error.message;
+          errorEl.style.display = 'block';
+        } else {
+          alert('Password update failed: ' + res.error.message);
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Update Password';
+        }
+        return;
+      }
+
+      state.isRecoveringPassword = false;
+      showToast('Password updated successfully!', 'success');
+
+      var form = document.getElementById('resetPasswordForm');
+      if (form) form.style.display = 'none';
+
+      var successEl = document.getElementById('resetPasswordSuccess');
+      if (successEl) successEl.style.display = 'block';
+
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = 'Error: ' + (err.message || err);
+        errorEl.style.display = 'block';
+      } else {
+        alert('Error: ' + (err.message || err));
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Password';
+      }
+    }
+  }
+
+  function returnToLogin() {
+    state.isRecoveringPassword = false;
+    var client = getClient();
+    if (client) {
+      client.auth.signOut().catch(function () {});
+    }
+    state.user = null;
+    state.isAdmin = false;
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    showAuthScreen();
+  }
+
+  // --- TAB NAVIGATION ---
+  function switchTab(tabName) {
+    state.activeTab = tabName;
+    document.querySelectorAll('.admin-tab-btn, .admin-mobile-tab-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+    document.querySelectorAll('.view-section').forEach(function (sec) {
+      sec.classList.toggle('active', sec.id === 'view-' + tabName);
+    });
+
+    if (tabName === 'events') renderEventsTable();
+    if (tabName === 'gallery') renderGalleryGrid();
+    if (tabName === 'trustees') renderTrusteesTable();
+    if (tabName === 'updates') renderUpdatesTable();
+    if (tabName === 'settings') populateSettingsForm();
+  }
+
+  // --- DATA LOADING ---
+  async function loadAllData() {
+    var client = getClient();
+    if (!client) return;
+
+    // Load Events
+    try {
+      var eRes = await client.from('events').select('*').order('display_order', { ascending: true });
+      if (!eRes.error && eRes.data) {
+        state.events = eRes.data;
+        var pubEvents = state.events.filter(function (e) { return e.published; }).length;
+        var elEvents = document.getElementById('statEventsCount');
+        if (elEvents) elEvents.textContent = pubEvents;
+        var bEvents = document.getElementById('badgeEventsCount');
+        if (bEvents) bEvents.textContent = state.events.length;
+        var bEventsMob = document.getElementById('badgeEventsCountMobile');
+        if (bEventsMob) bEventsMob.textContent = state.events.length;
+      }
+    } catch (err) { console.error('Events load error:', err); }
+
+    // Load Gallery
+    try {
+      var gRes = await client.from('gallery_items').select('*').order('display_order', { ascending: true });
+      if (!gRes.error && gRes.data) {
+        state.gallery = gRes.data;
+        var pubGal = state.gallery.filter(function (g) { return g.published; }).length;
+        var elGal = document.getElementById('statGalleryCount');
+        if (elGal) elGal.textContent = pubGal;
+        var bGal = document.getElementById('badgeGalleryCount');
+        if (bGal) bGal.textContent = state.gallery.length;
+        var bGalMob = document.getElementById('badgeGalleryCountMobile');
+        if (bGalMob) bGalMob.textContent = state.gallery.length;
+      }
+    } catch (err) { console.error('Gallery load error:', err); }
+
+    // Load Updates
+    try {
+      var uRes = await client.from('updates').select('*').order('published_at', { ascending: false });
+      if (!uRes.error && uRes.data) {
+        state.updates = uRes.data;
+        var bUp = document.getElementById('badgeUpdatesCount');
+        if (bUp) bUp.textContent = state.updates.length;
+        var bUpMob = document.getElementById('badgeUpdatesCountMobile');
+        if (bUpMob) bUpMob.textContent = state.updates.length;
+      }
+    } catch (err) { console.error('Updates load error:', err); }
+
+    // Load Trustees
+    try {
+      var mRes = await client.from('members').select('*').order('display_order', { ascending: true });
+      if (!mRes.error && mRes.data) {
+        state.members = mRes.data;
+        var actMembers = state.members.filter(function (m) { return m.active; }).length;
+        var elTr = document.getElementById('statTrusteesCount');
+        if (elTr) elTr.textContent = actMembers;
+        var bTr = document.getElementById('badgeTrusteesCount');
+        if (bTr) bTr.textContent = state.members.length;
+        var bTrMob = document.getElementById('badgeTrusteesCountMobile');
+        if (bTrMob) bTrMob.textContent = state.members.length;
+      }
+    } catch (err) { console.error('Trustees load error:', err); }
+
+    if (state.activeTab === 'events') renderEventsTable();
+    if (state.activeTab === 'gallery') renderGalleryGrid();
+    if (state.activeTab === 'trustees') renderTrusteesTable();
+    if (state.activeTab === 'updates') renderUpdatesTable();
+    updateGalleryCapacity();
+  }
+
+  // ============================================================
+  // 1. EVENTS MANAGEMENT
+  // ============================================================
+  function renderEventsTable() {
+    var tbody = document.getElementById('eventsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!state.events.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--admin-muted);">No events found. Click "ADD NEW EVENT" above to create one.</td></tr>';
+      return;
+    }
+
+    state.events.forEach(function (e) {
+      var tr = document.createElement('tr');
+      var dateText = e.is_recurring ? (e.recurrence_rule || e.date_display_en || 'Recurring') : (e.date_display_en || (e.start_date + (e.end_date ? ' to ' + e.end_date : '')));
+      var locText = e.location_en || '—';
+      var statusClass = e.published ? 'published' : 'draft';
+      var statusText = e.published ? 'Published' : 'Draft';
+
+      tr.innerHTML =
+        '<td data-label="Event Title"><strong>' + escapeHtml(e.title_en) + '</strong>' +
+          (e.header_subtitle ? '<br><small style="color:var(--admin-muted);">' + escapeHtml(e.header_subtitle) + '</small>' : '') +
+          '<br><small style="color:var(--admin-muted);">' + escapeHtml(e.title_ta || '') + '</small></td>' +
+        '<td data-label="Schedule">' + (e.is_recurring ? '<span class="status-pill active" style="margin-right:6px;">Recurring</span>' : '') + escapeHtml(dateText) + '</td>' +
+        '<td data-label="Location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:13px;height:13px;margin-right:4px;vertical-align:-1px;color:var(--admin-maroon);"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>' + escapeHtml(locText) + '</td>' +
+        '<td data-label="Status"><span class="status-pill ' + statusClass + '">' + statusText + '</span></td>' +
+        '<td data-label="Order">' + (e.display_order || 0) + '</td>' +
+        '<td data-label="Actions"><div class="row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm edit-event-btn" data-id="' + e.id + '">Edit</button>' +
+          '<button type="button" class="btn btn-danger btn-sm delete-event-btn" data-id="' + e.id + '">Delete</button>' +
+        '</div></td>';
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('.edit-event-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { openEventModal(btn.getAttribute('data-id')); });
+    });
+    tbody.querySelectorAll('.delete-event-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteEvent(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function openEventModal(id) {
+    var modal = document.getElementById('eventModal');
+    var form = document.getElementById('eventForm');
+    form.reset();
+
+    var isEdit = !!id;
+    document.getElementById('eventModalTitle').textContent = isEdit ? 'Edit Event' : 'Add New Event';
+    document.getElementById('eventId').value = id || '';
+
+    if (isEdit) {
+      var item = state.events.filter(function (e) { return e.id === id; })[0];
+      if (item) {
+        document.getElementById('eventSlug').value = item.slug || '';
+        document.getElementById('eventTitleEn').value = item.title_en || '';
+        document.getElementById('eventTitleTa').value = item.title_ta || '';
+        document.getElementById('eventHeaderSubtitle').value = item.header_subtitle || '';
+        document.getElementById('eventDisplayStructure').value = item.display_structure || 'title-only';
+        document.getElementById('eventDescEn').value = item.description_en || '';
+        document.getElementById('eventDescTa').value = item.description_ta || '';
+        document.getElementById('eventDescriptionVisible').checked = item.description_visible !== false;
+        document.getElementById('eventIsRecurring').checked = !!item.is_recurring;
+        document.getElementById('eventRecurrenceRule').value = item.recurrence_rule || '';
+        document.getElementById('eventStartDate').value = item.start_date || '';
+        document.getElementById('eventEndDate').value = item.end_date || '';
+        document.getElementById('eventDateDisplayEn').value = item.date_display_en || '';
+        document.getElementById('eventDateDisplayTa').value = item.date_display_ta || '';
+        document.getElementById('eventLocationEn').value = item.location_en || '';
+        document.getElementById('eventLocationTa').value = item.location_ta || '';
+        document.getElementById('eventMapUrl').value = item.map_url || '';
+        document.getElementById('eventDetailsEn').value = item.details_en || '';
+        document.getElementById('eventDetailsTa').value = item.details_ta || '';
+        document.getElementById('eventDetailsTe').value = item.details_te || '';
+        document.getElementById('eventDetailsKn').value = item.details_kn || '';
+        document.getElementById('eventTitleTe').value = item.title_te || '';
+        document.getElementById('eventTitleKn').value = item.title_kn || '';
+        document.getElementById('eventLocationTe').value = item.location_te || '';
+        document.getElementById('eventLocationKn').value = item.location_kn || '';
+        document.getElementById('eventDescTe').value = item.description_te || '';
+        document.getElementById('eventDescKn').value = item.description_kn || '';
+        document.getElementById('eventPublished').checked = item.published !== false;
+        document.getElementById('eventDisplayOrder').value = item.display_order || 0;
+      }
+    } else {
+      document.getElementById('eventPublished').checked = true;
+      document.getElementById('eventDisplayOrder').value = state.events.length + 1;
+    }
+
+    toggleEventDateFields();
+    modal.classList.add('open');
+  }
+
+  function toggleEventDateFields() {
+    var isRec = document.getElementById('eventIsRecurring').checked;
+    var recGroup = document.getElementById('recurrenceGroup');
+    var dateGroup = document.getElementById('fixedDateGroup');
+    if (recGroup) recGroup.style.display = isRec ? 'block' : 'none';
+    if (dateGroup) dateGroup.style.display = isRec ? 'none' : 'grid';
+  }
+
+  async function saveEvent(e) {
+    e.preventDefault();
+    var client = getClient();
+    if (!client) return;
+
+    var id = document.getElementById('eventId').value;
+    var titleEn = document.getElementById('eventTitleEn').value.trim();
+    var titleTa = document.getElementById('eventTitleTa').value.trim() || titleEn;
+    var slug = document.getElementById('eventSlug').value.trim() || slugify(titleEn);
+    var isRecurring = document.getElementById('eventIsRecurring').checked;
+
+    // Location and Date are shown (with labels) on every public event card
+    if (!document.getElementById('eventLocationEn').value.trim()) {
+      alert('Please enter the event Location — it is shown on the event card and used for the Google Maps link.');
+      return;
+    }
+    var hasDate = isRecurring
+      ? !!document.getElementById('eventRecurrenceRule').value.trim()
+      : !!(document.getElementById('eventStartDate').value || document.getElementById('eventDateDisplayEn').value.trim());
+    if (!hasDate) {
+      alert(isRecurring ? 'Please enter the recurrence (e.g. Every 2nd Saturday) — it is shown as the event Date.' : 'Please enter the event Date (start date, or the display text).');
+      return;
+    }
+    var mapUrlValue = document.getElementById('eventMapUrl').value.trim();
+    if (mapUrlValue && !/^https?:\/\//i.test(mapUrlValue)) {
+      alert('The Google Maps link must start with https://');
+      return;
+    }
+    var optional = function (id) { return document.getElementById(id).value.trim() || null; };
+
+    var record = {
+      slug: slug,
+      title_en: titleEn,
+      title_ta: titleTa,
+      header_subtitle: document.getElementById('eventHeaderSubtitle').value.trim(),
+      display_structure: document.getElementById('eventDisplayStructure').value,
+      description_en: document.getElementById('eventDescEn').value.trim(),
+      description_ta: document.getElementById('eventDescTa').value.trim(),
+      description_visible: document.getElementById('eventDescriptionVisible').checked,
+      is_recurring: isRecurring,
+      recurrence_rule: isRecurring ? document.getElementById('eventRecurrenceRule').value.trim() : null,
+      start_date: isRecurring ? null : (document.getElementById('eventStartDate').value || null),
+      end_date: isRecurring ? null : (document.getElementById('eventEndDate').value || null),
+      date_display_en: document.getElementById('eventDateDisplayEn').value.trim() || (isRecurring ? document.getElementById('eventRecurrenceRule').value.trim() : document.getElementById('eventStartDate').value),
+      date_display_ta: document.getElementById('eventDateDisplayTa').value.trim() || document.getElementById('eventDateDisplayEn').value.trim(),
+      location_en: document.getElementById('eventLocationEn').value.trim(),
+      location_ta: document.getElementById('eventLocationTa').value.trim(),
+      map_url: mapUrlValue || null,
+      details_en: optional('eventDetailsEn'),
+      details_ta: optional('eventDetailsTa'),
+      details_te: optional('eventDetailsTe'),
+      details_kn: optional('eventDetailsKn'),
+      title_te: optional('eventTitleTe'),
+      title_kn: optional('eventTitleKn'),
+      location_te: optional('eventLocationTe'),
+      location_kn: optional('eventLocationKn'),
+      description_te: optional('eventDescTe'),
+      description_kn: optional('eventDescKn'),
+      published: document.getElementById('eventPublished').checked,
+      display_order: parseInt(document.getElementById('eventDisplayOrder').value, 10) || 0,
+      updated_at: new Date().toISOString()
+    };
+
+    var btn = document.getElementById('saveEventBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      var res;
+      if (id) {
+        res = await client.from('events').update(record).eq('id', id);
+      } else {
+        res = await client.from('events').insert([record]);
+      }
+
+      if (res.error) {
+        alert(dbErrorMessage(res.error, 'event'));
+      } else {
+        showToast(id ? 'Event updated successfully.' : 'Event added successfully.');
+        document.getElementById('eventModal').classList.remove('open');
+        await loadAllData();
+      }
+    } catch (err) {
+      alert('Error saving event: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Event';
+    }
+  }
+
+  async function deleteEvent(id) {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+
+    var client = getClient();
+    if (!client) return;
+
+    try {
+      var res = await client.from('events').delete().eq('id', id);
+      if (res.error) {
+        alert('Failed to delete event: ' + res.error.message);
+      } else {
+        showToast('Event deleted from Supabase.');
+        await loadAllData();
+      }
+    } catch (err) {
+      alert('Error deleting event: ' + err.message);
+    }
+  }
+
+  // ============================================================
+  // 2. GALLERY MANAGEMENT
+  // ============================================================
+  function renderGalleryGrid() {
+    var container = document.getElementById('galleryAdminGrid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!state.gallery.length) {
+      container.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:48px; color:var(--admin-muted); background:var(--admin-paper); border-radius:12px; border:1px solid var(--admin-line);">No gallery images found. Click "+ Add Image" above to upload photos.</div>';
+      return;
+    }
+
+    state.gallery.forEach(function (g) {
+      var card = document.createElement('div');
+      card.className = 'gallery-admin-card';
+      var statusClass = g.published ? 'published' : 'draft';
+      var statusText = g.published ? 'Published' : 'Draft';
+
+      card.innerHTML =
+        '<div class="gallery-admin-thumb">' +
+          '<span class="gallery-admin-badge">' + escapeHtml(g.badge_en || g.category) + '</span>' +
+          '<img src="' + escapeHtml(g.image_url) + '" alt="' + escapeHtml(g.title_en) + '" loading="lazy">' +
+        '</div>' +
+        '<div class="gallery-admin-body">' +
+          '<div class="gallery-admin-title">' + escapeHtml(g.title_en) + '</div>' +
+          '<small style="color:var(--admin-muted);">' + escapeHtml(g.title_ta || '') + '</small>' +
+        '</div>' +
+        '<div class="gallery-admin-footer">' +
+          '<span class="status-pill ' + statusClass + '">' + statusText + '</span>' +
+          '<div class="row-actions">' +
+            '<button type="button" class="btn btn-outline btn-sm edit-gallery-btn" data-id="' + g.id + '">Edit</button>' +
+            '<button type="button" class="btn btn-danger btn-sm delete-gallery-btn" data-id="' + g.id + '">Delete</button>' +
+          '</div>' +
+        '</div>';
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('.edit-gallery-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { openGalleryModal(btn.getAttribute('data-id')); });
+    });
+    container.querySelectorAll('.delete-gallery-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteGalleryItem(btn.getAttribute('data-id')); });
+    });
+  }
+
+  // Correction 05 — at most 25 photos; deleting one frees a slot
+  function updateGalleryCapacity() {
+    var used = state.gallery.length;
+    var full = used >= GALLERY_LIMIT;
+    var el = document.getElementById('galleryCapacity');
+    if (el) {
+      el.innerHTML = '<strong>' + used + ' / ' + GALLERY_LIMIT + '</strong> photos used' +
+        (full ? ' — <span style="color:#b91c1c;font-weight:600;">gallery is full. Delete a photo to upload another.</span>' : ' — ' + (GALLERY_LIMIT - used) + ' slot' + (GALLERY_LIMIT - used === 1 ? '' : 's') + ' free');
+    }
+    var btn = document.getElementById('addGalleryBtn');
+    if (btn) {
+      btn.disabled = full;
+      btn.title = full ? 'The gallery holds a maximum of ' + GALLERY_LIMIT + ' photos. Delete one to add another.' : '';
+      btn.style.opacity = full ? '0.55' : '';
+      btn.style.cursor = full ? 'not-allowed' : '';
+    }
+  }
+
+  function openGalleryModal(id) {
+    if (!id && state.gallery.length >= GALLERY_LIMIT) {
+      alert('The Photo Gallery is full (' + GALLERY_LIMIT + ' photos maximum). Delete a photo first, then upload the new one.');
+      return;
+    }
+    var modal = document.getElementById('galleryModal');
+    var form = document.getElementById('galleryForm');
+    form.reset();
+
+    var isEdit = !!id;
+    document.getElementById('galleryModalTitle').textContent = isEdit ? 'Edit Gallery Photo' : 'Upload Gallery Photo';
+    document.getElementById('galleryId').value = id || '';
+    document.getElementById('galleryImagePath').value = '';
+
+    var preview = document.getElementById('galleryUploadPreview');
+    preview.style.display = 'none';
+    preview.src = '';
+
+    if (isEdit) {
+      var item = state.gallery.filter(function (g) { return g.id === id; })[0];
+      if (item) {
+        document.getElementById('galleryTitleEn').value = item.title_en || '';
+        document.getElementById('galleryTitleTa').value = item.title_ta || '';
+        document.getElementById('galleryCategory').value = item.category || 'padi-pooja';
+        document.getElementById('galleryBadgeEn').value = item.badge_en || '';
+        document.getElementById('galleryBadgeTa').value = item.badge_ta || '';
+        document.getElementById('galleryDescEn').value = item.description_en || '';
+        document.getElementById('galleryDescTa').value = item.description_ta || '';
+        document.getElementById('galleryImageUrl').value = item.image_url || '';
+        document.getElementById('galleryImagePath').value = item.image_path || '';
+        document.getElementById('galleryPublished').checked = item.published !== false;
+        document.getElementById('galleryDisplayOrder').value = item.display_order || 0;
+
+        if (item.image_url) {
+          preview.src = item.image_url;
+          preview.style.display = 'block';
+        }
+      }
+    } else {
+      document.getElementById('galleryPublished').checked = true;
+      document.getElementById('galleryDisplayOrder').value = state.gallery.length + 1;
+    }
+
+    modal.classList.add('open');
+  }
+
+  // Handle local file preview in modal
+  function handleFileSelect(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var preview = document.getElementById('galleryUploadPreview');
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      preview.src = ev.target.result;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveGalleryItem(e) {
+    e.preventDefault();
+    var client = getClient();
+    if (!client) return;
+
+    var id = document.getElementById('galleryId').value;
+    var fileInput = document.getElementById('galleryFileInput');
+    var file = fileInput.files[0];
+    var imageUrl = document.getElementById('galleryImageUrl').value.trim();
+    var imagePath = document.getElementById('galleryImagePath').value.trim();
+
+    if (!file && !imageUrl) {
+      alert('Please choose an image file to upload or provide an image URL.');
+      return;
+    }
+
+    // Re-check the real count right before adding (another admin may have uploaded)
+    if (!id) {
+      var countRes = await client.from('gallery_items').select('id', { count: 'exact', head: true });
+      var liveCount = (countRes && typeof countRes.count === 'number') ? countRes.count : state.gallery.length;
+      if (liveCount >= GALLERY_LIMIT) {
+        alert('The Photo Gallery is full (' + GALLERY_LIMIT + ' photos maximum). Delete a photo first, then upload the new one.');
+        await loadAllData();
+        return;
+      }
+    }
+
+    var uploadedNewPath = null;
+    var btn = document.getElementById('saveGalleryBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading image...';
+
+    try {
+      // 1. Upload to Supabase Storage if file chosen
+      if (file) {
+        var fileExt = file.name.split('.').pop();
+        var fileName = 'img_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.' + fileExt;
+        var filePath = 'gallery/' + fileName;
+
+        var uploadRes = await client.storage.from('gallery').upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+        if (uploadRes.error) {
+          throw new Error('Storage upload failed: ' + uploadRes.error.message);
+        }
+
+        imagePath = filePath;
+        uploadedNewPath = filePath;
+        var publicRes = client.storage.from('gallery').getPublicUrl(filePath);
+        imageUrl = publicRes.data.publicUrl;
+      }
+
+      btn.textContent = 'Saving database record...';
+
+      // 2. Save metadata to database
+      var category = document.getElementById('galleryCategory').value;
+      var badgeEn = document.getElementById('galleryBadgeEn').value.trim() || getCategoryLabel(category);
+      var badgeTa = document.getElementById('galleryBadgeTa').value.trim() || badgeEn;
+
+      var record = {
+        title_en: document.getElementById('galleryTitleEn').value.trim(),
+        title_ta: document.getElementById('galleryTitleTa').value.trim() || document.getElementById('galleryTitleEn').value.trim(),
+        description_en: document.getElementById('galleryDescEn').value.trim(),
+        description_ta: document.getElementById('galleryDescTa').value.trim(),
+        category: category,
+        badge_en: badgeEn,
+        badge_ta: badgeTa,
+        image_path: imagePath || null,
+        image_url: imageUrl,
+        published: document.getElementById('galleryPublished').checked,
+        display_order: parseInt(document.getElementById('galleryDisplayOrder').value, 10) || 0,
+        updated_at: new Date().toISOString()
+      };
+
+      var res;
+      if (id) {
+        res = await client.from('gallery_items').update(record).eq('id', id);
+      } else {
+        res = await client.from('gallery_items').insert([record]);
+      }
+
+      if (res.error) {
+        if (uploadedNewPath) {
+          try { await client.storage.from('gallery').remove([uploadedNewPath]); } catch (e) {}
+        }
+        alert(/Photo Gallery is full/i.test(res.error.message) ? res.error.message : 'Failed to save gallery item: ' + res.error.message);
+      } else {
+        showToast(id ? 'Gallery photo updated.' : 'Gallery photo uploaded successfully.');
+        document.getElementById('galleryModal').classList.remove('open');
+        await loadAllData();
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Photo';
+    }
+  }
+
+  async function deleteGalleryItem(id) {
+    if (!confirm('Are you sure you want to delete this image?\n\nThis will remove it from the public gallery and cleanup associated storage.')) return;
+
+    var client = getClient();
+    if (!client) return;
+
+    try {
+      var item = state.gallery.filter(function (g) { return g.id === id; })[0];
+      // Cleanup Supabase Storage file if exists
+      if (item && item.image_path) {
+        try {
+          await client.storage.from('gallery').remove([item.image_path]);
+        } catch (e) {
+          console.warn('Could not remove file from storage:', e);
+        }
+      }
+
+      var res = await client.from('gallery_items').delete().eq('id', id);
+      if (res.error) {
+        alert('Failed to delete item: ' + res.error.message);
+      } else {
+        showToast('Photo deleted successfully.');
+        await loadAllData();
+      }
+    } catch (err) {
+      alert('Error deleting image: ' + err.message);
+    }
+  }
+
+  function getCategoryLabel(cat) {
+    var map = {
+      'padi-pooja': '18 Padi Pooja',
+      'vilakku-pooja': 'Thiru Vilakku Pooja',
+      'annadhaanam': 'Annadhaanam',
+      'abhishekam': 'Maha Abhishekam',
+      'utsavam': 'Mandala Pooja & Utsavam'
+    };
+    return map[cat] || cat;
+  }
+
+  // ============================================================
+  // 3. TRUSTEES & COMMITTEE MANAGEMENT
+  // ============================================================
+  function getMemberCategoryLabel(category) {
+    var labels = {
+      'office-bearers': 'Office Bearers',
+      'life-member': 'Life Member',
+      'member': 'Member',
+      'apex-committee': 'Apex Committee',
+      'core-committee': 'Committee'
+    };
+    return labels[category] || '—';
+  }
+
+  function renderTrusteesTable() {
+    var tbody = document.getElementById('trusteesTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    var filtered = state.members.filter(function (m) {
+      if (state.memberCategoryFilter !== 'all' && m.category !== state.memberCategoryFilter) {
+        return false;
+      }
+      if (state.memberSearchQuery) {
+        var q = state.memberSearchQuery.toLowerCase();
+        return (m.name_en && m.name_en.toLowerCase().indexOf(q) !== -1) ||
+               (m.role_en && m.role_en.toLowerCase().indexOf(q) !== -1) ||
+               (getMemberCategoryLabel(m.category).toLowerCase().indexOf(q) !== -1);
+      }
+      return true;
+    });
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--admin-muted);">No members match your filter.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(function (m) {
+      var tr = document.createElement('tr');
+      var statusClass = m.active ? 'active' : 'inactive';
+      var statusText = m.active ? 'Published' : 'Inactive';
+      var photo = m.photo_url
+        ? '<img src="' + escapeHtml(m.photo_url) + '" alt="" loading="lazy" style="width:42px;height:52px;object-fit:cover;border-radius:6px;flex:none;">'
+        : '<div style="width:42px;height:52px;border-radius:6px;background:var(--admin-cream);border:1px solid var(--admin-line);display:flex;align-items:center;justify-content:center;color:var(--admin-muted);font-size:10px;flex:none;">No photo</div>';
+
+      tr.innerHTML =
+        '<td data-label="Member Name"><div style="display:flex;align-items:center;gap:10px;">' +
+          photo +
+          '<div><strong>' + escapeHtml(m.name_en) + '</strong>' + (m.featured ? ' <span class="status-pill active" style="font-size:10px;">Featured</span>' : '') + (m.name_ta ? '<br><small style="color:var(--admin-muted);">' + escapeHtml(m.name_ta) + '</small>' : '') + '</div>' +
+        '</div></td>' +
+        '<td data-label="Designation">' + escapeHtml(m.role_en || '—') + '</td>' +
+        '<td data-label="Mobile Number">' + (m.mobile_number ? escapeHtml(m.mobile_number) : '—') + '</td>' +
+        '<td data-label="Category">' + escapeHtml(getMemberCategoryLabel(m.category)) + '</td>' +
+        '<td data-label="Display Order">' + escapeHtml(String(m.display_order == null ? 0 : m.display_order)) + '</td>' +
+        '<td data-label="Status"><span class="status-pill ' + statusClass + '">' + statusText + '</span></td>' +
+        '<td data-label="Actions"><div class="row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm edit-member-btn" data-id="' + escapeHtml(m.id) + '">Edit</button>' +
+          '<button type="button" class="btn btn-danger btn-sm delete-member-btn" data-id="' + escapeHtml(m.id) + '">Delete</button>' +
+        '</div></td>';
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('.edit-member-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { openMemberModal(btn.getAttribute('data-id')); });
+    });
+    tbody.querySelectorAll('.delete-member-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteMember(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function createMemberId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return 'member-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function showMemberPhotoPreview(src, alt) {
+    var preview = document.getElementById('memberPhotoPreview');
+    var empty = document.getElementById('memberPhotoEmpty');
+    if (!src) {
+      preview.removeAttribute('src');
+      preview.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    preview.src = src;
+    preview.alt = alt || 'Member photo preview';
+    preview.style.display = 'block';
+    empty.style.display = 'none';
+  }
+
+  function validateMemberPhoto(file) {
+    var extension = file.name.split('.').pop().toLowerCase();
+    var allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    var allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowedExtensions.indexOf(extension) === -1 ||
+        (file.type && allowedTypes.indexOf(file.type.toLowerCase()) === -1)) {
+      return 'Choose a JPG, JPEG, PNG, or WebP image.';
+    }
+    if (file.size === 0) {
+      return 'Choose a non-empty image file.';
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return 'Member photos must be 5 MB or smaller.';
+    }
+    return '';
+  }
+
+  function openMemberModal(id) {
+    var modal = document.getElementById('memberModal');
+    var form = document.getElementById('memberForm');
+    var photoInput = document.getElementById('memberPhotoFile');
+    form.reset();
+    photoInput.required = false;
+    showMemberPhotoPreview('', '');
+
+    var isEdit = !!id;
+    document.getElementById('memberModalTitle').textContent = isEdit ? 'Edit Member Profile' : 'Add New Member';
+    document.getElementById('memberId').value = id || '';
+    document.getElementById('memberIdField').value = id || createMemberId();
+
+    if (isEdit) {
+      var m = state.members.filter(function (x) { return x.id === id; })[0];
+      if (!m) {
+        alert('The selected member could not be found. Refresh the list and try again.');
+        return;
+      }
+      document.getElementById('memberNameEn').value = m.name_en || '';
+      document.getElementById('memberNameTa').value = m.name_ta || '';
+      document.getElementById('memberRoleEn').value = m.role_en || '';
+      document.getElementById('memberRoleTa').value = m.role_ta || '';
+      document.getElementById('memberGroupType').value = m.category || '';
+      document.getElementById('memberInitials').value = m.initials || '';
+      document.getElementById('memberFeatured').checked = !!m.featured;
+      document.getElementById('memberActive').checked = m.active !== false;
+      document.getElementById('memberDisplayOrder').value = m.display_order || 0;
+      document.getElementById('memberFamily').value = m.family_members || '';
+      document.getElementById('memberGothram').value = m.gothram || '';
+      document.getElementById('memberStar').value = m.nakshatram_star || '';
+      document.getElementById('memberRasi').value = m.rasi || '';
+      document.getElementById('memberMobile').value = m.mobile_number || '';
+      showMemberPhotoPreview(m.photo_url || '', 'Current photo for ' + (m.name_en || 'member'));
+      photoInput.required = !m.photo_url;
+    } else {
+      document.getElementById('memberActive').checked = true;
+      document.getElementById('memberDisplayOrder').value = state.members.length + 1;
+      document.getElementById('memberGroupType').value = '';
+      photoInput.required = true;
+    }
+
+    modal.classList.add('open');
+  }
+
+  function handleMemberPhotoSelect(event) {
+    var file = event.target.files && event.target.files[0];
+    if (!file) return;
+    var validationError = validateMemberPhoto(file);
+    if (validationError) {
+      event.target.value = '';
+      alert(validationError);
+      return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function (loadEvent) {
+      showMemberPhotoPreview(loadEvent.target.result, 'Member photo preview');
+    };
+    reader.onerror = function () {
+      alert('The selected photo could not be previewed. Choose another image.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeMemberPhotoIfUnused(client, photoPath) {
+    if (!photoPath) return;
+    var references = await client.from('members').select('id').eq('photo_path', photoPath);
+    if (references.error) throw new Error('Could not check photo references: ' + references.error.message);
+    if (references.data && references.data.length) return;
+
+    var publicPhoto = client.storage.from('member-photos').getPublicUrl(photoPath);
+    var memberUrl = publicPhoto.data && publicPhoto.data.publicUrl;
+    if (memberUrl) {
+      var urlReferences = await client.from('members').select('id').eq('photo_url', memberUrl);
+      if (urlReferences.error) throw new Error('Could not check photo URL references: ' + urlReferences.error.message);
+      if (urlReferences.data && urlReferences.data.length) return;
+
+      var galleryReferences = await client.from('gallery_items').select('id').eq('image_url', memberUrl);
+      if (galleryReferences.error) throw new Error('Could not check gallery photo references: ' + galleryReferences.error.message);
+      if (galleryReferences.data && galleryReferences.data.length) return;
+    }
+
+    var removed = await client.storage.from('member-photos').remove([photoPath]);
+    if (removed.error) throw new Error('Could not remove the unused photo: ' + removed.error.message);
+  }
+
+  async function saveMember(e) {
+    e.preventDefault();
+    var client = getClient();
+    if (!client) {
+      alert('Supabase is not configured. Configure the database before saving member details.');
+      return;
+    }
+
+    var nameEn = document.getElementById('memberNameEn').value.trim();
+    var category = document.getElementById('memberGroupType').value;
+    var id = document.getElementById('memberIdField').value.trim() || createMemberId();
+    var isEdit = !!document.getElementById('memberId').value;
+    var existingMember = isEdit ? state.members.filter(function (m) { return m.id === id; })[0] : null;
+    var photoInput = document.getElementById('memberPhotoFile');
+    var photoFile = photoInput.files && photoInput.files[0];
+    var photoValidationError = photoFile ? validateMemberPhoto(photoFile) : '';
+
+    if (!nameEn) {
+      alert('Enter the member’s full name.');
+      return;
+    }
+    if (!category) {
+      alert('Select a member category.');
+      return;
+    }
+    if (photoValidationError) {
+      alert(photoValidationError);
+      return;
+    }
+    if (!photoFile && (!isEdit || !existingMember || !existingMember.photo_url)) {
+      alert('Choose a profile photo before saving this member.');
+      return;
+    }
+    var displayOrderValue = document.getElementById('memberDisplayOrder').value;
+    var displayOrder = displayOrderValue === '' ? 0 : Number(displayOrderValue);
+    if (!Number.isInteger(displayOrder) || displayOrder < 0) {
+      alert('Display order must be a non-negative whole number.');
+      return;
+    }
+
+    var mobileValue = document.getElementById('memberMobile').value.trim();
+    if (mobileValue && !/^[+()\d][\d\s()+\-]{6,19}$/.test(mobileValue)) {
+      alert('Enter a valid mobile number (digits, spaces, + or - only), or leave it empty.');
+      return;
+    }
+
+    var initials = document.getElementById('memberInitials').value.trim();
+    if (!initials) {
+      initials = nameEn.split(' ').map(function (w) { return w[0]; }).join('').substring(0, 3).toUpperCase();
+    }
+
+    var record = {
+      id: id,
+      name_en: nameEn,
+      name_ta: document.getElementById('memberNameTa').value.trim() || null,
+      role_en: document.getElementById('memberRoleEn').value.trim() || null,
+      role_ta: document.getElementById('memberRoleTa').value.trim() || null,
+      category: category,
+      group_type: category === 'apex-committee' || category === 'office-bearers' || category === 'life-member' ? 'apex' : 'present',
+      initials: initials,
+      featured: document.getElementById('memberFeatured').checked,
+      active: document.getElementById('memberActive').checked,
+      display_order: displayOrder,
+      family_members: document.getElementById('memberFamily').value.trim() || null,
+      gothram: document.getElementById('memberGothram').value.trim() || null,
+      nakshatram_star: document.getElementById('memberStar').value.trim() || null,
+      rasi: document.getElementById('memberRasi').value.trim() || null,
+      mobile_number: mobileValue || null,
+      updated_at: new Date().toISOString()
+    };
+
+    record.photo_url = existingMember ? existingMember.photo_url || null : null;
+    record.photo_path = existingMember ? existingMember.photo_path || null : null;
+
+    var btn = document.getElementById('saveMemberBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    var uploadedPhotoPath = null;
+    var oldPhotoPath = existingMember ? existingMember.photo_path : null;
+
+    try {
+      if (photoFile) {
+        btn.textContent = 'Uploading photo...';
+        var extension = photoFile.name.split('.').pop().toLowerCase();
+        var photoTypes = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+        uploadedPhotoPath = id + '/' + createMemberId() + '.' + extension;
+        var uploadResult = await client.storage.from('member-photos').upload(uploadedPhotoPath, photoFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: photoFile.type || photoTypes[extension]
+        });
+        if (uploadResult.error) throw new Error('Photo upload failed: ' + uploadResult.error.message);
+
+        var publicPhoto = client.storage.from('member-photos').getPublicUrl(uploadedPhotoPath);
+        if (!publicPhoto.data || !publicPhoto.data.publicUrl) {
+          throw new Error('The uploaded photo URL could not be generated.');
+        }
+        record.photo_path = uploadedPhotoPath;
+        record.photo_url = publicPhoto.data.publicUrl;
+      }
+
+      btn.textContent = 'Saving member...';
+      var res;
+      if (isEdit) {
+        res = await client.from('members').update(record).eq('id', id);
+      } else {
+        res = await client.from('members').insert([record]);
+      }
+
+      if (res.error) throw new Error(dbErrorMessage(res.error, 'member'));
+
+      if (oldPhotoPath && oldPhotoPath !== uploadedPhotoPath) {
+        try {
+          await removeMemberPhotoIfUnused(client, oldPhotoPath);
+        } catch (cleanupError) {
+          alert('Member saved, but the previous photo could not be cleaned up: ' + cleanupError.message);
+        }
+      }
+
+      showToast(isEdit ? 'Member details updated.' : 'New member added successfully.');
+      document.getElementById('memberModal').classList.remove('open');
+      await loadAllData();
+    } catch (err) {
+      var cleanupMessage = '';
+      if (uploadedPhotoPath) {
+        try {
+          await removeMemberPhotoIfUnused(client, uploadedPhotoPath);
+        } catch (cleanupError) {
+          cleanupMessage = ' The uploaded photo also could not be cleaned up: ' + cleanupError.message;
+        }
+      }
+      alert('Error saving member: ' + err.message + cleanupMessage);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Member';
+    }
+  }
+
+  async function deleteMember(id) {
+    if (!confirm('Are you sure you want to delete this member?')) return;
+
+    var client = getClient();
+    if (!client) {
+      alert('Supabase is not configured. Configure the database before deleting member details.');
+      return;
+    }
+
+    try {
+      var member = state.members.filter(function (m) { return m.id === id; })[0];
+      if (!member) throw new Error('The selected member could not be found. Refresh the list and try again.');
+      var res = await client.from('members').delete().eq('id', id).select('id');
+      if (res.error) throw new Error('Failed to delete member: ' + res.error.message);
+      if (!res.data || !res.data.length) throw new Error('No member was deleted. Check that you have administrator permissions.');
+
+      if (member.photo_path) {
+        try {
+          await removeMemberPhotoIfUnused(client, member.photo_path);
+        } catch (cleanupError) {
+          alert('Member deleted, but the photo could not be cleaned up: ' + cleanupError.message);
+        }
+      }
+
+      showToast('Member deleted successfully.');
+      await loadAllData();
+    } catch (err) {
+      alert('Error deleting member: ' + err.message);
+    }
+  }
+
+  // ============================================================
+  // 4. SETTINGS & CONFIGURATION
+  // ============================================================
+
+  // ============================================================
+  // 4. LATEST UPDATES  (correction 09)
+  // ============================================================
+  function formatUpdateDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  }
+
+  function renderUpdatesTable() {
+    var tbody = document.getElementById('updatesTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!state.updates.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:32px; color:var(--admin-muted);">No updates yet. Click "Add Update" to publish the first announcement.</td></tr>';
+      return;
+    }
+    state.updates.forEach(function (u) {
+      var tr = document.createElement('tr');
+      var statusClass = u.published ? 'published' : 'draft';
+      tr.innerHTML =
+        '<td data-label="Date">' + escapeHtml(formatUpdateDate(u.published_at)) + '</td>' +
+        '<td data-label="Update"><strong>' + escapeHtml(u.text_en) + '</strong>' +
+          (u.text_ta ? '<br><small style="color:var(--admin-muted);">' + escapeHtml(u.text_ta) + '</small>' : '') + '</td>' +
+        '<td data-label="Link">' + (u.link_url ? '<a href="' + escapeHtml(u.link_url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(u.link_label_en || 'Click here') + '</a>' : '—') + '</td>' +
+        '<td data-label="Status"><span class="status-pill ' + statusClass + '">' + (u.published ? 'Published' : 'Draft') + '</span></td>' +
+        '<td data-label="Actions"><div class="row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm edit-update-btn" data-id="' + escapeHtml(u.id) + '">Edit</button>' +
+          '<button type="button" class="btn btn-danger btn-sm delete-update-btn" data-id="' + escapeHtml(u.id) + '">Delete</button>' +
+        '</div></td>';
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll('.edit-update-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { openUpdateModal(btn.getAttribute('data-id')); });
+    });
+    tbody.querySelectorAll('.delete-update-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteUpdate(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function todayIso() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function openUpdateModal(id) {
+    var form = document.getElementById('updateForm');
+    form.reset();
+    document.getElementById('updateId').value = id || '';
+    document.getElementById('updateModalTitle').textContent = id ? 'Edit Update' : 'Add Update';
+    if (id) {
+      var u = state.updates.filter(function (x) { return x.id === id; })[0];
+      if (u) {
+        document.getElementById('updateTextEn').value = u.text_en || '';
+        document.getElementById('updateTextTa').value = u.text_ta || '';
+        document.getElementById('updateTextTe').value = u.text_te || '';
+        document.getElementById('updateTextKn').value = u.text_kn || '';
+        document.getElementById('updateLinkUrl').value = u.link_url || '';
+        document.getElementById('updateLinkLabel').value = u.link_label_en || '';
+        document.getElementById('updatePublished').checked = u.published !== false;
+        var d = new Date(u.published_at);
+        document.getElementById('updateDate').value = isNaN(d.getTime()) ? todayIso()
+          : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+      }
+    } else {
+      document.getElementById('updateDate').value = todayIso();
+      document.getElementById('updatePublished').checked = true;
+    }
+    document.getElementById('updateModal').classList.add('open');
+  }
+
+  async function saveUpdate(e) {
+    e.preventDefault();
+    var client = getClient();
+    if (!client) return;
+    var id = document.getElementById('updateId').value;
+    var textEn = document.getElementById('updateTextEn').value.trim();
+    if (!textEn) { alert('Enter the update text.'); return; }
+    var link = document.getElementById('updateLinkUrl').value.trim();
+    if (link && !/^https?:\/\//i.test(link)) { alert('The link must start with https://'); return; }
+    var dateVal = document.getElementById('updateDate').value || todayIso();
+    var optional = function (idv) { return document.getElementById(idv).value.trim() || null; };
+
+    var record = {
+      text_en: textEn,
+      text_ta: optional('updateTextTa'),
+      text_te: optional('updateTextTe'),
+      text_kn: optional('updateTextKn'),
+      link_url: link || null,
+      link_label_en: optional('updateLinkLabel'),
+      published: document.getElementById('updatePublished').checked,
+      // noon IST on the chosen day keeps the date stable in every time zone
+      published_at: new Date(dateVal + 'T12:00:00+05:30').toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    var btn = document.getElementById('saveUpdateBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      var res = id ? await client.from('updates').update(record).eq('id', id)
+                   : await client.from('updates').insert([record]);
+      if (res.error) {
+        alert(dbErrorMessage(res.error, 'update'));
+      } else {
+        showToast(id ? 'Update saved.' : 'Update published — it now appears on the website.');
+        document.getElementById('updateModal').classList.remove('open');
+        await loadAllData();
+      }
+    } catch (err) {
+      alert('Error saving update: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Update';
+    }
+  }
+
+  async function deleteUpdate(id) {
+    if (!confirm('Delete this update permanently?\n\nTip: untick "Published" instead if you only want to hide it — the history is kept.')) return;
+    var client = getClient();
+    if (!client) return;
+    try {
+      var res = await client.from('updates').delete().eq('id', id);
+      if (res.error) alert('Failed to delete update: ' + res.error.message);
+      else { showToast('Update deleted.'); await loadAllData(); }
+    } catch (err) { alert('Error deleting update: ' + err.message); }
+  }
+
+  function populateSettingsForm() {
+    var cfg = window.ABASS_API ? window.ABASS_API.getConfig() : {};
+    document.getElementById('settingsUrl').value = cfg.url || '';
+    document.getElementById('settingsKey').value = cfg.anonKey || '';
+  }
+
+  function saveSettings(e) {
+    e.preventDefault();
+    var url = document.getElementById('settingsUrl').value.trim();
+    var key = document.getElementById('settingsKey').value.trim();
+
+    if (window.ABASS_API) {
+      window.ABASS_API.setConfig(url, key);
+      showToast('Supabase configuration saved to this browser.');
+      checkAuth();
+    }
+  }
+
+  async function testConnection() {
+    var url = document.getElementById('settingsUrl').value.trim();
+    var key = document.getElementById('settingsKey').value.trim();
+    var statusEl = document.getElementById('testConnStatus');
+    statusEl.textContent = 'Testing connection...';
+    statusEl.style.color = 'var(--admin-navy)';
+
+    try {
+      var testClient = window.supabase.createClient(url, key);
+      var res = await testClient.from('events').select('id').limit(1);
+      if (res.error) {
+        statusEl.textContent = 'Connection test failed: ' + res.error.message;
+        statusEl.style.color = 'var(--admin-red)';
+      } else {
+        statusEl.textContent = 'Connection successful! Supabase responded properly.';
+        statusEl.style.color = 'var(--admin-green)';
+      }
+    } catch (err) {
+      statusEl.textContent = 'Connection error: ' + (err.message || err);
+      statusEl.style.color = 'var(--admin-red)';
+    }
+  }
+
+  // --- HELPERS ---
+  function slugify(text) {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // --- INITIALIZATION ---
+  window.addEventListener('DOMContentLoaded', function () {
+    // Auth listeners
+    var loginForm = document.getElementById('loginForm');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+    var deniedLogoutBtn = document.getElementById('deniedLogoutBtn');
+    if (deniedLogoutBtn) deniedLogoutBtn.addEventListener('click', handleLogout);
+
+    var forgotPasswordLink = document.getElementById('forgotPasswordLink');
+    if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', handleForgotPassword);
+
+    var resetPasswordForm = document.getElementById('resetPasswordForm');
+    if (resetPasswordForm) resetPasswordForm.addEventListener('submit', handleResetPassword);
+
+    var returnToLoginBtn = document.getElementById('returnToLoginBtn');
+    if (returnToLoginBtn) returnToLoginBtn.addEventListener('click', returnToLogin);
+
+    var cancelResetBtn = document.getElementById('cancelResetBtn');
+    if (cancelResetBtn) cancelResetBtn.addEventListener('click', returnToLogin);
+
+    var client = getClient();
+    if (client && client.auth) {
+      client.auth.onAuthStateChange(function (event, session) {
+        if (event === 'PASSWORD_RECOVERY') {
+          state.isRecoveringPassword = true;
+          showResetPasswordScreen();
+        }
+      });
+    }
+
+    // Tab buttons (desktop)
+    document.querySelectorAll('.admin-tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        switchTab(btn.getAttribute('data-tab'));
+      });
+    });
+
+    // Mobile navigation drawer toggle
+    var menuToggle = document.getElementById('adminMenuToggle');
+    var mobileDrawer = document.getElementById('adminMobileDrawer');
+    if (menuToggle && mobileDrawer) {
+      menuToggle.addEventListener('click', function () {
+        var isOpen = mobileDrawer.classList.toggle('open');
+        menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        var ham = menuToggle.querySelector('.hamburger-icon');
+        var cls = menuToggle.querySelector('.close-icon');
+        if (ham) ham.style.display = isOpen ? 'none' : 'block';
+        if (cls) cls.style.display = isOpen ? 'block' : 'none';
+      });
+    }
+
+    // Mobile drawer tab buttons
+    document.querySelectorAll('.admin-mobile-tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        switchTab(btn.getAttribute('data-tab'));
+        if (mobileDrawer) {
+          mobileDrawer.classList.remove('open');
+          if (menuToggle) {
+            menuToggle.setAttribute('aria-expanded', 'false');
+            var ham = menuToggle.querySelector('.hamburger-icon');
+            var cls = menuToggle.querySelector('.close-icon');
+            if (ham) ham.style.display = 'block';
+            if (cls) cls.style.display = 'none';
+          }
+        }
+      });
+    });
+
+    var logoutBtnMob = document.getElementById('logoutBtnMobile');
+    if (logoutBtnMob) logoutBtnMob.addEventListener('click', handleLogout);
+
+    // Modals
+    var addEventBtn = document.getElementById('addEventBtn');
+    if (addEventBtn) addEventBtn.addEventListener('click', function () { openEventModal(); });
+    var eventForm = document.getElementById('eventForm');
+    if (eventForm) eventForm.addEventListener('submit', saveEvent);
+    var eventIsRecurring = document.getElementById('eventIsRecurring');
+    if (eventIsRecurring) eventIsRecurring.addEventListener('change', toggleEventDateFields);
+
+    var addGalleryBtn = document.getElementById('addGalleryBtn');
+    if (addGalleryBtn) addGalleryBtn.addEventListener('click', function () { openGalleryModal(); });
+    var galleryForm = document.getElementById('galleryForm');
+    if (galleryForm) galleryForm.addEventListener('submit', saveGalleryItem);
+    var galleryFileInput = document.getElementById('galleryFileInput');
+    if (galleryFileInput) galleryFileInput.addEventListener('change', handleFileSelect);
+
+    var addMemberBtn = document.getElementById('addMemberBtn');
+    if (addMemberBtn) addMemberBtn.addEventListener('click', function () { openMemberModal(); });
+    var addUpdateBtn = document.getElementById('addUpdateBtn');
+    if (addUpdateBtn) addUpdateBtn.addEventListener('click', function () { openUpdateModal(); });
+    var updateForm = document.getElementById('updateForm');
+    if (updateForm) updateForm.addEventListener('submit', saveUpdate);
+    var memberForm = document.getElementById('memberForm');
+    if (memberForm) memberForm.addEventListener('submit', saveMember);
+    var memberPhotoFile = document.getElementById('memberPhotoFile');
+    if (memberPhotoFile) memberPhotoFile.addEventListener('change', handleMemberPhotoSelect);
+
+    // Member filters
+    var memberFilterCategory = document.getElementById('memberFilterCategory');
+    var memberSearch = document.getElementById('memberSearch');
+
+    function updateMemberCategoryFilter(category) {
+      state.memberCategoryFilter = category;
+      renderTrusteesTable();
+    }
+    if (memberFilterCategory) memberFilterCategory.addEventListener('change', function (e) { updateMemberCategoryFilter(e.target.value); });
+    if (memberSearch) {
+      memberSearch.addEventListener('input', function (e) {
+        state.memberSearchQuery = e.target.value.trim();
+        renderTrusteesTable();
+      });
+    }
+
+    // Modal close buttons
+    document.querySelectorAll('.modal-close, .modal-cancel-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.modal-backdrop').forEach(function (m) { m.classList.remove('open'); });
+      });
+    });
+
+    // Settings
+    var settingsForm = document.getElementById('settingsForm');
+    if (settingsForm) settingsForm.addEventListener('submit', saveSettings);
+    var testConnBtn = document.getElementById('testConnBtn');
+    if (testConnBtn) testConnBtn.addEventListener('click', testConnection);
+
+    // Check auth session
+    checkAuth();
+  });
+})();
