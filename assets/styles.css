@@ -680,16 +680,19 @@ body.lang-ta .ts-value.legal{ font-family:'Noto Serif Tamil',serif; letter-spaci
 
 /* 108 Saranam Grid */
 .saranam-grid{
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px 24px; max-height:480px;
-  overflow-y:auto; padding:20px; background:var(--paper); border:1px solid var(--line);
+  display:grid; grid-template-columns:minmax(0,1fr); gap:10px; max-height:min(68vh,720px);
+  overflow-y:auto; overscroll-behavior:contain; padding:20px; background:var(--paper); border:1px solid var(--line);
   border-radius:12px;
 }
 .saranam-item{
-  display:flex; align-items:center; gap:10px; font-size:14px; color:var(--ink);
-  padding:8px 10px; border-radius:6px; background:var(--cream);
+  display:flex; align-items:flex-start; gap:12px; min-width:0; font-size:14px; color:var(--ink);
+  padding:10px 12px; border-radius:8px; background:var(--cream);
 }
-.saranam-item .num{
-  font-size:11px; font-weight:700; color:var(--maroon); width:24px; text-align:right; flex:none;
+.saranam-item .s-num{
+  font-size:12px; font-weight:700; color:var(--maroon); width:30px; text-align:right; flex:none;
+}
+.saranam-item .s-text{
+  min-width:0; line-height:1.5; overflow-wrap:anywhere;
 }
 
 /* Sponsorship Tiers in Donations */

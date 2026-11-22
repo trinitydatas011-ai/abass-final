@@ -24,6 +24,12 @@
 
   var OTHER_ID = 'other-event';
   var REFRESH_MS = 60000;
+  var PREDEFINED_DONATION_EVENTS = [
+    { id: 'predefined-monthly-annadhaanam', title: 'MONTHLY ANNADHAANAM', translationKey: 'EVERY MONTH ANNADHAANAM', aliases: ['EVERY MONTH ANNADHAANAM'] },
+    { id: 'predefined-yearly-padi-pooja', title: 'YEARLY PADI POOJA', aliases: [] },
+    { id: 'predefined-monthly-pooja', title: 'MONTHLY POOJA', aliases: [] },
+    { id: 'predefined-yearly-vilakku-pooja', title: 'YEARLY VILAKKU POOJA', aliases: [] }
+  ];
 
   /* ---------------------------------------------------------------
      Built-in expanded descriptions (correction 10). Used when the
@@ -106,8 +112,10 @@
   // Google Maps link — the admin's own link if given, otherwise a search for
   // the location text the admin entered.
   function mapUrl(e) {
-    return safeUrl(e.map_url) ||
-      ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(e.location_en || ''));
+    var location = e.location_en || e.location_ta || e.location_ml || e.location_te || e.location_kn || '';
+    return safeUrl(e.map_url) || (location
+      ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location)
+      : '');
   }
   function mapEmbedUrl(e) {
     return 'https://www.google.com/maps?q=' + encodeURIComponent(e.location_en || '') + '&output=embed';
@@ -139,23 +147,30 @@
     } catch (err) { return ''; }
   }
 
+  function cleanDateLabel(value, l) {
+    var text = String(value || '').trim();
+    var match = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(text);
+    if (!match) return text;
+    var d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return isNaN(d.getTime()) ? '' : fmtOne(d, l);
+  }
+
   // Date text for an event in a language: the admin's text for that language,
   // else a translation of the English text, else a locale-formatted date.
   function dateText(e, l) {
     var en = e.date_display_en || '';
+    // Fixed event dates always come from the structured Admin date fields.
+    // This avoids rendering a database value such as 2026-11-20 verbatim.
+    if (!e.is_recurring && e.start_date) return formatFixedDate(e, l);
     if (l === 'en') {
-      return en || (e.is_recurring ? (e.recurrence_rule || '') : (formatFixedDate(e, 'en') || e.start_date || ''));
+      return cleanDateLabel(en || (e.is_recurring ? (e.recurrence_rule || '') : ''), l);
     }
     var own = e['date_display_' + l];
-    if (own) return own;
+    if (own) return cleanDateLabel(own, l);
     var rule = e.is_recurring ? (e.recurrence_rule || en) : en;
     var translated = rule && window.getTranslation ? window.getTranslation(rule, l) : null;
     if (translated) return translated;
-    if (!e.is_recurring) {
-      var formatted = formatFixedDate(e, l);
-      if (formatted) return formatted;
-    }
-    return rule || '';
+    return cleanDateLabel(rule || '', l);
   }
 
   function detailsKey(e) {
@@ -250,15 +265,20 @@
     var locRow = h('div', 'event-info-row event-info-location');
     locRow.appendChild(h('span', 'event-info-label', ui('Location')));
     var locVal = h('div', 'event-info-value');
-    locVal.appendChild(svg(PIN));
-    locVal.appendChild(h('span', 'event-loc-text', spec.location || ui('To be announced')));
+    var location = String(spec.location || '').trim();
+    if (location) {
+      locVal.appendChild(svg(PIN));
+      locVal.appendChild(h('span', 'event-loc-text', location));
+    } else {
+      locVal.hidden = true;
+    }
     locRow.appendChild(locVal);
     if (spec.mapHref) {
       var a = h('a', 'event-map-link');
       a.href = spec.mapHref; a.target = '_blank'; a.rel = 'noopener noreferrer';
       a.appendChild(svg(EXT));
       a.appendChild(h('span', '', ui('Open in Google Maps')));
-      a.setAttribute('aria-label', ui('Open in Google Maps') + ': ' + (spec.location || ''));
+      a.setAttribute('aria-label', ui('Open in Google Maps') + (location ? ': ' + location : ''));
       locRow.appendChild(a);
     }
     info.appendChild(locRow);
@@ -266,8 +286,13 @@
     var dateRow = h('div', 'event-info-row event-info-date');
     dateRow.appendChild(h('span', 'event-info-label', ui('Date')));
     var dateVal = h('div', 'event-info-value');
-    dateVal.appendChild(svg(CAL));
-    dateVal.appendChild(h('span', 'event-date-text', spec.date || ui('To be announced')));
+    var date = String(spec.date || '').trim();
+    if (date) {
+      dateVal.appendChild(svg(CAL));
+      dateVal.appendChild(h('span', 'event-date-text', date));
+    } else {
+      dateVal.hidden = true;
+    }
     dateRow.appendChild(dateVal);
     info.appendChild(dateRow);
     return info;
@@ -277,7 +302,7 @@
     var showDescription = e.slug !== 'padi' && e.slug !== 'vilakku' && e.description_visible !== false;
     return {
       location: window.abassField(e, 'location', l),
-      mapHref: e.location_en || safeUrl(e.map_url) ? mapUrl(e) : '',
+      mapHref: window.abassField(e, 'location', l) || safeUrl(e.map_url) ? mapUrl(e) : '',
       date: dateText(e, l),
       description: showDescription ? window.abassField(e, 'description', l) : ''
     };
@@ -299,15 +324,13 @@
     var body = h('div', 'event-body');
     body.appendChild(infoRows(spec, l));
 
-    if (hasExpandableContent(e)) {
-      var btn = h('button', 'event-details-btn');
-      btn.type = 'button';
-      btn.setAttribute('data-event-id', e.id || '');
-      btn.appendChild(h('span', '', ui('View details')));
-      btn.appendChild(h('span', 'event-details-arrow', '›'));
-      btn.addEventListener('click', function () { openModal(e.id, btn); });
-      body.appendChild(btn);
-    }
+    var btn = h('button', 'event-details-btn');
+    btn.type = 'button';
+    btn.setAttribute('data-event-id', e.id || '');
+    btn.appendChild(h('span', '', ui('View details')));
+    btn.appendChild(h('span', 'event-details-arrow', '›'));
+    btn.addEventListener('click', function () { openModal(e.id, btn); });
+    body.appendChild(btn);
     card.appendChild(body);
     return card;
   }
@@ -340,12 +363,41 @@
   }
 
   /* ---------------------------------------------------------------
-     Contribute form dropdown — same list, same titles as the cards
+     Contribute form dropdown — fixed donation choices, then additional
+     Admin events not already represented by a fixed choice.
      --------------------------------------------------------------- */
   function optionLabels(e) {
-    var header = window.getABASSEventHeader(e);
+    var title = e.title_en || '';
+    return {
+      en: title,
+      ta: e.title_ta || title,
+      ml: e.title_ml || window.getMalayalamTranslation(title) || title,
+      te: e.title_te || window.getTranslation(title, 'te') || title,
+      kn: e.title_kn || window.getTranslation(title, 'kn') || title
+    };
+  }
+
+  function normalizeTitle(title) {
+    return String(title || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function isPredefinedEvent(e) {
+    var title = normalizeTitle(e.title_en);
+    return PREDEFINED_DONATION_EVENTS.some(function (item) {
+      return [item.title].concat(item.aliases).some(function (knownTitle) {
+        return title === normalizeTitle(knownTitle);
+      });
+    });
+  }
+
+  function predefinedOptionLabels(item) {
     var out = {};
-    ['en', 'ta', 'ml', 'te', 'kn'].forEach(function (l) { out[l] = window.getABASSEventHeaderLabel(header, l); });
+    ['en', 'ta', 'ml', 'te', 'kn'].forEach(function (l) {
+      var translationKey = item.translationKey || item.title;
+      out[l] = l === 'en'
+        ? item.title
+        : (window.getTranslation && window.getTranslation(translationKey, l)) || item.title;
+    });
     return out;
   }
 
@@ -372,16 +424,14 @@
     placeholder.textContent = ui('Select Event');
     formSelect.appendChild(placeholder);
 
-    events.forEach(function (e) {
-      if (!e.id) return;
-      addOption(formSelect, e.id, optionLabels(e), l);
+    PREDEFINED_DONATION_EVENTS.forEach(function (item) {
+      addOption(formSelect, item.id, predefinedOptionLabels(item), l);
     });
 
-    var otherLabels = {};
-    ['en', 'ta', 'ml', 'te', 'kn'].forEach(function (x) {
-      otherLabels[x] = (x === 'en' ? 'OTHER EVENT' : (window.getTranslation && window.getTranslation('OTHER EVENT', x)) || 'OTHER EVENT');
+    events.forEach(function (e) {
+      if (!e.id || !e.title_en || isPredefinedEvent(e)) return;
+      addOption(formSelect, e.id, optionLabels(e), l);
     });
-    addOption(formSelect, OTHER_ID, otherLabels, l);
 
     if (keep) formSelect.value = keep;
     if (formSelect.value !== keep) placeholder.selected = true;
