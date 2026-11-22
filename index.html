@@ -61,6 +61,18 @@
   </div>
 </div>
 
+<section class="latest-updates lu-ticker" id="latest-updates" aria-labelledby="latestUpdatesTitle">
+  <div class="lu-head">
+    <h2 id="latestUpdatesTitle" class="lu-title" data-en="Latest Updates" data-ta="சமீபத்திய அறிவிப்புகள்">Latest Updates</h2>
+    <span class="lu-count" data-lu-count></span>
+    <button type="button" class="lu-toggle" data-lu-toggle aria-pressed="false" aria-label="Pause auto-scroll" hidden>⏸</button>
+  </div>
+  <div class="lu-scroll" data-lu-scroll tabindex="0" role="region" aria-label="Latest Updates list">
+    <ul class="lu-list" data-lu-list aria-live="polite">
+      <li class="lu-empty" data-en="Loading updates…" data-ta="அறிவிப்புகள் ஏற்றப்படுகின்றன…">Loading updates…</li>
+    </ul>
+  </div>
+</section>
 
 <main class="page-main">
   <!-- HERO SECTION -->
@@ -98,20 +110,36 @@
             </div>
           </div>
         </div>
-        <div class="hero-visual hero-updates-wrap">
-<aside class="latest-updates" id="latest-updates" aria-labelledby="latestUpdatesTitle">
-<div class="lu-head">
-<h2 id="latestUpdatesTitle" class="lu-title" data-en="Latest Updates" data-ta="சமீபத்திய அறிவிப்புகள்">Latest Updates</h2>
-<span class="lu-count" data-lu-count></span>
-<button type="button" class="lu-toggle" data-lu-toggle aria-pressed="false" aria-label="Pause auto-scroll" hidden>⏸</button>
-</div>
-<div class="lu-scroll" data-lu-scroll tabindex="0" role="region" aria-label="Latest Updates list">
-<ul class="lu-list" data-lu-list aria-live="polite">
-<li class="lu-empty" data-en="Loading updates…" data-ta="அறிவிப்புகள் ஏற்றப்படுகின்றன…">Loading updates…</li>
-</ul>
-</div>
-</aside>
-</div>
+        <div class="hero-visual">
+          <div class="hero-visual-ring" aria-hidden="true"></div>
+          <div class="hero-slideshow" role="group" aria-roledescription="carousel" aria-label="ABASS Seva photo highlights" data-en-aria-label="ABASS Seva photo highlights">
+            <div class="hero-slide active" data-title-en="Grand 18 Padi Altar &amp; Deepam Row" data-title-ta="புனித 18 படிகள் பீடம் &amp; தீப வரிசை">
+              <img src="assets/images/gallery-1.jpg" alt="Grand 18 Padi Altar and Deepam Row" loading="eager" fetchpriority="high">
+            </div>
+            <div class="hero-slide" data-title-en="Sri Dharma Sastha Sanctum Sanctorum" data-title-ta="ஸ்ரீ தர்ம சாஸ்தா கருவறை &amp; 18 படிகள்">
+              <img src="assets/images/gallery-2.jpg" alt="Sri Dharma Sastha sanctum with the sacred 18 steps" loading="lazy">
+            </div>
+            <div class="hero-slide" data-title-en="Traditional Thiru Vilakku Pooja" data-title-ta="மங்களகரமான திருவிளக்கு பூஜை">
+              <img src="assets/images/gallery-3.jpg" alt="Devotees participating in Thiru Vilakku Pooja" loading="lazy">
+            </div>
+            <div class="hero-slide" data-title-en="Devotees in Sannidhanam Prayer" data-title-ta="சன்னிதானத்தில் பக்தி பரவசம்">
+              <img src="assets/images/gallery-4.jpg" alt="Devotees gathered in prayer at Sannidhanam" loading="lazy">
+            </div>
+            <div class="hero-darshan-cap" aria-hidden="true">
+              <span class="cap-om" data-en="Swamiye Saranam Ayyappa" data-ta="ஸ்வாமியே சரணம் ஐயப்பா">Swamiye Saranam Ayyappa</span>
+              <span class="cap-title" data-en="Grand 18 Padi Altar &amp; Deepam Row" data-ta="புனித 18 படிகள் பீடம் &amp; தீப வரிசை">Grand 18 Padi Altar &amp; Deepam Row</span>
+            </div>
+            <div class="hero-slide-nav">
+              <button type="button" class="hero-nav-arrow prev" aria-label="Previous hero image" data-en-aria-label="Previous hero image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div class="hero-slide-dots" role="group" aria-label="Hero image slides" data-en-aria-label="Hero image slides"></div>
+              <button type="button" class="hero-nav-arrow next" aria-label="Next hero image" data-en-aria-label="Next hero image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>

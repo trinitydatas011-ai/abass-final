@@ -705,6 +705,66 @@ table.admin-table tr:hover {
   background: var(--admin-cream);
 }
 
+#eventModal .modal-box {
+  box-sizing: border-box;
+  height: calc(100vh - 40px);
+  height: min(90vh, calc(100dvh - 40px));
+  max-height: calc(100vh - 40px);
+  max-height: min(90vh, calc(100dvh - 40px));
+}
+#eventModal .modal-header,
+#eventModal .modal-footer {
+  flex: 0 0 auto;
+}
+#eventModal #eventForm {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+#eventModal #eventForm > .modal-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+#memberModal .modal-box {
+  box-sizing: border-box;
+  height: calc(100vh - 40px);
+  height: min(90vh, calc(100dvh - 40px));
+  max-height: calc(100vh - 40px);
+  max-height: min(90vh, calc(100dvh - 40px));
+}
+#memberModal .modal-header,
+#memberModal .modal-footer {
+  flex: 0 0 auto;
+}
+#memberModal #memberForm {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+#memberModal #memberForm > .modal-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
 .form-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

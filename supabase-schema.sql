@@ -262,11 +262,11 @@ values ('kumbabhishekam', 'Pallavaram Bharathi Nagar Pillayar Koil Kumbabhisheka
 on conflict (slug) do nothing;
 
 insert into public.events (slug, title_en, title_ta, description_en, description_ta, start_date, end_date, date_display_en, date_display_ta, location_en, location_ta, is_recurring, recurrence_rule, published, display_order)
-values ('padi', 'YEARLY PADI POOJA', 'ஆண்டு படி பூஜை', 'Annual 18 Padi Pooja observed on 12th December 2026.', '12 டிசம்பர் 2026 அன்று ஆண்டு 18 படி பூஜை நடைபெறும்.', '2026-12-12', '2026-12-12', '12 Dec 2026', '12 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', false, NULL, true, 3)
+values ('padi', 'YEARLY PADI POOJA', 'ஆண்டு படி பூஜை', NULL, NULL, '2026-12-12', '2026-12-12', '12 Dec 2026', '12 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', false, NULL, true, 3)
 on conflict (slug) do nothing;
 
 insert into public.events (slug, title_en, title_ta, description_en, description_ta, start_date, end_date, date_display_en, date_display_ta, location_en, location_ta, is_recurring, recurrence_rule, published, display_order)
-values ('vilakku', 'YEARLY VILAKKU POOJA', 'ஆண்டு விளக்கு பூஜை', 'Annual Thiru Vilakku Pooja observed on 19th December 2026.', '19 டிசம்பர் 2026 அன்று ஆண்டு திருவிளக்கு பூஜை நடைபெறும்.', '2026-12-19', '2026-12-19', '19 Dec 2026', '19 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', false, NULL, true, 4)
+values ('vilakku', 'YEARLY VILAKKU POOJA', 'ஆண்டு விளக்கு பூஜை', NULL, NULL, '2026-12-19', '2026-12-19', '19 Dec 2026', '19 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', false, NULL, true, 4)
 on conflict (slug) do nothing;
 
 update public.events
@@ -367,6 +367,10 @@ alter table public.events add column if not exists location_te    text;
 alter table public.events add column if not exists location_kn    text;
 alter table public.events add column if not exists description_te text;
 alter table public.events add column if not exists description_kn text;
+
+update public.events
+set description_visible = false
+where slug in ('padi', 'vilakku');
 
 -- Correction 10 — descriptions for the two yearly poojas.
 -- Mini-format: "## Heading", "- bullet", blank line between paragraphs.

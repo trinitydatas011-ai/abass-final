@@ -1,27 +1,67 @@
 -- ============================================================
--- ABASS — Website Corrections (19 Nov 2026) — database migration
--- Run ONCE in Supabase Dashboard -> SQL Editor, BEFORE using the
--- updated Admin Panel. Safe to re-run (every statement is idempotent).
+-- ABASS — Event/Admin schema migration
+-- Run in Supabase Dashboard -> SQL Editor. Safe to re-run.
+-- Adds columns to the existing events table; it does not recreate it.
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. EVENTS  (corrections 02, 03, 04, 10)
---    map_url      optional Google Maps link; if empty the site builds
---                 a Maps link automatically from the location text.
---    details_*    long "expanded view" text (headings / bullet lists)
---    *_te / *_kn  optional Telugu / Kannada versions of the card text
+-- 1. EVENTS
+--    Includes the fields written by assets/admin.js and read by the
+--    public Events page. Existing columns and event data are preserved.
 -- ------------------------------------------------------------
-alter table public.events add column if not exists map_url        text;
-alter table public.events add column if not exists details_en     text;
-alter table public.events add column if not exists details_ta     text;
-alter table public.events add column if not exists details_te     text;
-alter table public.events add column if not exists details_kn     text;
-alter table public.events add column if not exists title_te       text;
-alter table public.events add column if not exists title_kn       text;
-alter table public.events add column if not exists location_te    text;
-alter table public.events add column if not exists location_kn    text;
-alter table public.events add column if not exists description_te text;
-alter table public.events add column if not exists description_kn text;
+alter table public.events
+  add column if not exists slug text,
+  add column if not exists title_en text,
+  add column if not exists title_ta text,
+  add column if not exists header_subtitle text,
+  add column if not exists display_structure text,
+  add column if not exists description_en text,
+  add column if not exists description_ta text,
+  add column if not exists description_te text,
+  add column if not exists description_kn text,
+  add column if not exists description_visible boolean,
+  add column if not exists is_recurring boolean not null default false,
+  add column if not exists recurrence_rule text,
+  add column if not exists start_date date,
+  add column if not exists end_date date,
+  add column if not exists date_display_en text,
+  add column if not exists date_display_ta text,
+  add column if not exists location_en text,
+  add column if not exists location_ta text,
+  add column if not exists location_te text,
+  add column if not exists location_kn text,
+  add column if not exists map_url text,
+  add column if not exists details_en text,
+  add column if not exists details_ta text,
+  add column if not exists details_te text,
+  add column if not exists details_kn text,
+  add column if not exists title_te text,
+  add column if not exists title_kn text,
+  add column if not exists published boolean not null default true,
+  add column if not exists display_order integer not null default 0,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+update public.events
+set display_structure = 'title-only'
+where display_structure is null;
+
+alter table public.events
+  alter column display_structure set default 'title-only',
+  alter column display_structure set not null;
+
+update public.events
+set description_visible = case when slug in ('padi', 'vilakku') then false else true end
+where description_visible is null;
+
+alter table public.events
+  alter column description_visible set default true,
+  alter column description_visible set not null;
+
+-- Hide the two card descriptions without deleting their stored text.
+update public.events
+set description_visible = false
+where slug in ('padi', 'vilakku');
 
 -- Correction 10 — descriptions for the two yearly poojas.
 -- Mini-format: "## Heading", "- bullet", blank line between paragraphs.
@@ -120,3 +160,7 @@ create policy "Admins can manage updates"
   to authenticated
   using (public.is_admin())
   with check (public.is_admin());
+
+-- Refresh PostgREST's cached table schema so the new columns are immediately
+-- available to the Supabase client.
+notify pgrst, 'reload schema';

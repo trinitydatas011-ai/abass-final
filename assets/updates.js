@@ -1,8 +1,7 @@
 /**
  * ABASS — Latest Updates (correction 09)
  *
- * A vertically scrolling announcements panel, modelled on the TTD
- * "Latest Updates" box. It lists EVERY update published from the Admin
+ * A horizontal announcements ticker. It lists EVERY update published from the Admin
  * Panel — from the first one ever published up to the latest — newest first.
  * Nothing is dropped when new updates are added; the visitor scrolls (or
  * lets it scroll by itself) to read older announcements.
@@ -26,7 +25,7 @@
 
   var NEW_DAYS = 7;
   var SPEED = 22;          // pixels per second
-  var HOLD_MS = 2600;      // pause at the top / bottom
+  var HOLD_MS = 2600;      // pause at either end
   var REFRESH_MS = 60000;
   var LOCALES = { en: 'en-IN', ta: 'ta-IN', ml: 'ml-IN', te: 'te-IN', kn: 'kn-IN' };
 
@@ -66,7 +65,7 @@
   }
 
   function render() {
-    var keepScroll = scroller.scrollTop;
+    var keepScroll = scroller.scrollLeft;
     list.innerHTML = '';
 
     if (!items.length) {
@@ -124,7 +123,7 @@
       var n = items.length;
       countEl.textContent = n + ' ' + (n === 1 ? ui('update') : ui('updates'));
     }
-    scroller.scrollTop = keepScroll;
+    scroller.scrollLeft = keepScroll;
     autoscroll.refresh();
   }
 
@@ -137,7 +136,7 @@
     var touchTimer = null;
     var pos = 0, last = 0, holdUntil = 0, running = false;
 
-    function overflowing() { return scroller.scrollHeight - scroller.clientHeight > 4; }
+    function overflowing() { return scroller.scrollWidth - scroller.clientWidth > 4; }
 
     function setToggle() {
       if (!toggle) return;
@@ -154,16 +153,16 @@
       var dt = last ? Math.min(ts - last, 100) : 0;
       last = ts;
       if (!userPaused && !hoverPaused && !document.hidden && overflowing() && ts >= holdUntil) {
-        var max = scroller.scrollHeight - scroller.clientHeight;
+        var max = scroller.scrollWidth - scroller.clientWidth;
         pos += SPEED * dt / 1000;
         if (pos >= max) {
           pos = max;
-          scroller.scrollTop = max;
+          scroller.scrollLeft = max;
           holdUntil = ts + HOLD_MS;
           // after the hold, return to the newest update
-          setTimeout(function () { pos = 0; scroller.scrollTop = 0; holdUntil = performance.now() + HOLD_MS; }, HOLD_MS);
+          setTimeout(function () { pos = 0; scroller.scrollLeft = 0; holdUntil = performance.now() + HOLD_MS; }, HOLD_MS);
         } else {
-          scroller.scrollTop = pos;
+          scroller.scrollLeft = pos;
         }
       }
       window.requestAnimationFrame(frame);
@@ -176,7 +175,7 @@
     }
 
     function hold() { hoverPaused = true; }
-    function release() { hoverPaused = false; pos = scroller.scrollTop; holdUntil = performance.now() + 800; }
+    function release() { hoverPaused = false; pos = scroller.scrollLeft; holdUntil = performance.now() + 800; }
 
     scroller.addEventListener('mouseenter', hold);
     scroller.addEventListener('mouseleave', release);
@@ -184,18 +183,24 @@
     scroller.addEventListener('focusout', release);
     scroller.addEventListener('touchstart', function () { hold(); if (touchTimer) clearTimeout(touchTimer); }, { passive: true });
     scroller.addEventListener('touchend', function () { touchTimer = setTimeout(release, 3500); }, { passive: true });
-    scroller.addEventListener('wheel', function () { pos = scroller.scrollTop; }, { passive: true });
+    scroller.addEventListener('wheel', function (ev) {
+      if (Math.abs(ev.deltaY) > Math.abs(ev.deltaX) && overflowing()) {
+        scroller.scrollLeft += ev.deltaY;
+        ev.preventDefault();
+      }
+      pos = scroller.scrollLeft;
+    }, { passive: false });
 
     if (toggle) {
       toggle.addEventListener('click', function () {
         userPaused = !userPaused;
-        pos = scroller.scrollTop;
+        pos = scroller.scrollLeft;
         setToggle();
       });
     }
 
     return {
-      refresh: function () { pos = scroller.scrollTop; setToggle(); start(); }
+      refresh: function () { pos = scroller.scrollLeft; setToggle(); start(); }
     };
   })();
 

@@ -90,41 +90,51 @@ body.event-modal-open{ overflow:hidden; }
 .event-cat-body{ padding-top:22px; }
 .member-directory-card-nophoto{ padding-top:20px; }
 
-/* ---------- 09. Latest Updates panel (hero, right column) ---------- */
-.hero-updates-wrap{ max-width:none !important; width:100%; margin:0 !important; }
-.latest-updates{
-  position:relative; z-index:1; background:#fff; border:1px solid var(--line); border-radius:16px;
-  box-shadow:0 24px 50px -26px rgba(14,30,58,.4); overflow:hidden; display:flex; flex-direction:column;
+/* ---------- 09. Latest Updates ticker (below the chant strip) ---------- */
+.latest-updates.lu-ticker{
+  display:grid; grid-template-columns:minmax(190px,240px) minmax(0,1fr); align-items:stretch;
+  width:100%; min-width:0; background:#fff; border-bottom:1px solid var(--line);
 }
 .lu-head{
-  display:flex; align-items:center; gap:10px; padding:12px 16px; background:var(--navy); color:var(--cream);
+  display:flex; align-items:center; gap:10px; min-width:0; padding:8px 18px; background:var(--navy); color:var(--cream);
 }
-.lu-title{ margin:0; flex:1; font-family:'Cinzel',serif; font-size:16px; color:var(--gold-soft) !important; -webkit-text-fill-color:currentColor; background:none; letter-spacing:.04em; }
+.lu-title{ margin:0; flex:1; min-width:0; font-family:'Cinzel',serif; font-size:15px; color:var(--gold-soft) !important; -webkit-text-fill-color:currentColor; background:none; letter-spacing:.04em; }
 .lu-title::after{ display:none !important; }
-.lu-count{ font-size:11.5px; opacity:.85; }
+.lu-count{ flex:none; font-size:11px; opacity:.85; white-space:nowrap; }
 .lu-toggle{
-  width:28px; height:28px; border-radius:50%; border:1px solid rgba(228,200,136,.6); background:transparent;
+  flex:none; width:28px; height:28px; border-radius:50%; border:1px solid rgba(228,200,136,.6); background:transparent;
   color:var(--gold-soft); font-size:12px; cursor:pointer; line-height:1;
 }
 .lu-toggle[hidden]{ display:none; }
 .lu-toggle:hover,.lu-toggle:focus-visible{ background:rgba(255,255,255,.15); }
-.lu-scroll{ height:min(420px,58vh); min-height:260px; overflow-y:auto; overscroll-behavior:contain; padding:6px 14px 10px; scrollbar-width:thin; scrollbar-color:var(--gold) transparent; }
+.lu-scroll{
+  min-width:0; height:56px; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain;
+  scrollbar-width:none; touch-action:pan-x; white-space:nowrap;
+}
+.lu-scroll::-webkit-scrollbar{ display:none; }
 .lu-scroll:focus-visible{ outline:2px solid var(--maroon); outline-offset:-2px; }
-.lu-list{ list-style:none; margin:0; padding:0; }
-.lu-item{ position:relative; display:flex; gap:10px; padding:12px 0; border-bottom:1px dashed var(--line); }
-.lu-item:last-child{ border-bottom:0; }
+.lu-list{ display:flex; align-items:stretch; width:max-content; min-width:100%; height:100%; list-style:none; margin:0; padding:0; }
+.lu-item{ position:relative; display:flex; flex:none; align-items:center; gap:10px; padding:0 18px; border-right:1px dashed var(--line); }
+.lu-body{ display:flex; align-items:center; gap:10px; min-width:0; }
 .lu-badge{
-  flex:none; align-self:flex-start; margin-top:2px; background:#d32f4a; color:#fff; font-size:9.5px; font-weight:800;
+  flex:none; background:#d32f4a; color:#fff; font-size:9.5px; font-weight:800;
   letter-spacing:.06em; padding:2px 6px; border-radius:4px; text-transform:uppercase;
 }
-.lu-body{ min-width:0; }
-.lu-date{ display:block; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted-2); margin-bottom:2px; }
-.lu-text{ margin:0; font-size:13.5px; line-height:1.55; color:var(--ink); overflow-wrap:anywhere; }
+.lu-date{ flex:none; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted-2); }
+.lu-text{ display:inline; margin:0; font-size:13.5px; line-height:1.4; color:var(--ink); }
 .lu-link{ color:var(--royal); font-weight:700; text-decoration:underline; }
-.lu-empty{ padding:24px 4px; font-size:13.5px; color:var(--muted); text-align:center; }
+.lu-empty{ display:flex; align-items:center; padding:0 18px; font-size:13.5px; color:var(--muted); }
 
-@media (max-width:900px){
-  .lu-scroll{ height:320px; }
+@media (max-width:620px){
+  .latest-updates.lu-ticker{ grid-template-columns:minmax(145px,42%) minmax(0,1fr); }
+  .lu-head{ gap:6px; padding:8px 10px; }
+  .lu-title{ font-size:12px; letter-spacing:.02em; }
+  .lu-count{ display:none; }
+  .lu-scroll{ height:52px; }
+  .lu-item{ gap:8px; padding:0 12px; }
+  .lu-body{ gap:7px; }
+  .lu-date{ font-size:10px; }
+  .lu-text{ font-size:12px; }
 }
 @media (prefers-reduced-motion:reduce){
   .latest-updates *{ scroll-behavior:auto !important; }

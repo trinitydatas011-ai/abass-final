@@ -510,8 +510,6 @@
  "Pallavaram, Chennai": "ಪಲ್ಲಾವರಂ, ಚೆನ್ನೈ",
  "Zamin Pallavaram, Chennai": "ಜಮೀನ್ ಪಲ್ಲಾವರಂ, ಚೆನ್ನೈ",
  "Free meal offering for a minimum of 250 persons, held every Second Saturday of the month.": "ಪ್ರತಿ ತಿಂಗಳ ಎರಡನೇ ಶನಿವಾರ ಕನಿಷ್ಠ 250 ಜನರಿಗೆ ಉಚಿತ ಊಟ.",
- "Annual 18 Padi Pooja observed on 12th December 2026.": "2026ರ ಡಿಸೆಂಬರ್ 12 ರಂದು ವಾರ್ಷಿಕ 18 ಪಡಿ ಪೂಜೆ ನಡೆಯಲಿದೆ.",
- "Annual Thiru Vilakku Pooja observed on 19th December 2026.": "2026ರ ಡಿಸೆಂಬರ್ 19 ರಂದು ವಾರ್ಷಿಕ ತಿರು ವಿಳಕ್ಕು ಪೂಜೆ ನಡೆಯಲಿದೆ.",
  "Vilakku Pooja is a sacred Pooja performed for many God and Godess.": "ವಿಳಕ್ಕು ಪೂಜೆ ಅನೇಕ ದೇವ-ದೇವಿಯರಿಗಾಗಿ ನಡೆಸುವ ಪವಿತ್ರ ಪೂಜೆಯಾಗಿದೆ.",
  "This sacred Ayyappan vilakku Pooja is performed as day long Pooja in the following manner:": "ಈ ಪವಿತ್ರ ಅಯ್ಯಪ್ಪನ್ ವಿಳಕ್ಕು ಪೂಜೆಯನ್ನು ದಿನವಿಡೀ ಈ ಕೆಳಗಿನ ರೀತಿಯಲ್ಲಿ ನಡೆಸಲಾಗುತ್ತದೆ:",
  "Maha Ganapathy Homam": "ಮಹಾ ಗಣಪತಿ ಹೋಮ",

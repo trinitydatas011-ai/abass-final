@@ -28,6 +28,13 @@
   // Friendly hint when the database migration has not been run yet
   function dbErrorMessage(err, what) {
     var msg = (err && err.message) ? err.message : String(err);
+    var code = (err && err.code) || '';
+    if (what === 'event' && (code === 'PGRST204' || code === '42703' || /schema cache|column/i.test(msg))) {
+      return 'Could not save event: Supabase rejected a column in public.events. Run supabase-migration-2026-11.sql in the SQL Editor for the project configured in this browser, then refresh its schema cache and reload the Admin Portal. No event was saved. (' + msg + ')';
+    }
+    if (what === 'member' && /photo_path|photo_url/i.test(msg)) {
+      return 'public.members is missing a photo column. Run supabase-member-photo-migration.sql in the SQL Editor for the project configured in this browser, then reload the Admin Portal. No member was saved. (' + msg + ')';
+    }
     if (/column|schema cache|does not exist|relation/i.test(msg)) {
       return 'Could not save ' + what + ': the database is missing the new fields. Run supabase-migration-2026-11.sql in the Supabase SQL Editor first. (' + msg + ')';
     }
@@ -1196,19 +1203,20 @@
         btn.textContent = 'Uploading photo...';
         var extension = photoFile.name.split('.').pop().toLowerCase();
         var photoTypes = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
-        uploadedPhotoPath = id + '/' + createMemberId() + '.' + extension;
-        var uploadResult = await client.storage.from('member-photos').upload(uploadedPhotoPath, photoFile, {
+        var candidatePhotoPath = id + '/' + createMemberId() + '.' + extension;
+        var uploadResult = await client.storage.from('member-photos').upload(candidatePhotoPath, photoFile, {
           cacheControl: '3600',
           upsert: false,
-          contentType: photoFile.type || photoTypes[extension]
+          contentType: photoTypes[extension]
         });
         if (uploadResult.error) throw new Error('Photo upload failed: ' + uploadResult.error.message);
+        uploadedPhotoPath = candidatePhotoPath;
 
-        var publicPhoto = client.storage.from('member-photos').getPublicUrl(uploadedPhotoPath);
+        var publicPhoto = client.storage.from('member-photos').getPublicUrl(candidatePhotoPath);
         if (!publicPhoto.data || !publicPhoto.data.publicUrl) {
           throw new Error('The uploaded photo URL could not be generated.');
         }
-        record.photo_path = uploadedPhotoPath;
+        record.photo_path = candidatePhotoPath;
         record.photo_url = publicPhoto.data.publicUrl;
       }
 
@@ -1242,7 +1250,11 @@
           cleanupMessage = ' The uploaded photo also could not be cleaned up: ' + cleanupError.message;
         }
       }
-      alert('Error saving member: ' + err.message + cleanupMessage);
+      var errorMessage = err && err.message ? err.message : String(err);
+      if (/bucket not found/i.test(errorMessage)) {
+        errorMessage = 'The Supabase Storage bucket "member-photos" is missing. Run supabase-member-photo-migration.sql in the SQL Editor for the project configured in this browser. No member was saved. (' + errorMessage + ')';
+      }
+      alert('Error saving member: ' + errorMessage + cleanupMessage);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Save Member';

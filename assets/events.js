@@ -11,7 +11,7 @@
  * Every card has labelled Location and Date rows and a Google Maps link
  * (correction 04). Events with long descriptions (e.g. Padi Pooja, Vilakku
  * Pooja — correction 10) get a "View details" button that opens an expanded
- * view with headings, bullet lists and an embedded Google Map.
+ * view with descriptions, headings, bullet lists and an embedded Google Map.
  *
  * All admin-supplied text is inserted with textContent (never innerHTML).
  */
@@ -176,7 +176,12 @@
     return en ? { text: en, translate: l !== 'en' } : null;
   }
 
-  function hasDetails(e) { return !!detailsSource(e, 'en'); }
+  function hasExpandableContent(e) {
+    if (detailsSource(e, 'en')) return true;
+    return ['en', 'ta', 'ml', 'te', 'kn'].some(function (l) {
+      return !!specFor(e, l).description;
+    });
+  }
 
   function trLine(text, l) {
     return (l !== 'en' && window.getTranslation && window.getTranslation(text, l)) || text;
@@ -269,11 +274,12 @@
   }
 
   function specFor(e, l) {
+    var showDescription = e.slug !== 'padi' && e.slug !== 'vilakku' && e.description_visible !== false;
     return {
       location: window.abassField(e, 'location', l),
       mapHref: e.location_en || safeUrl(e.map_url) ? mapUrl(e) : '',
       date: dateText(e, l),
-      description: e.description_visible !== false ? window.abassField(e, 'description', l) : ''
+      description: showDescription ? window.abassField(e, 'description', l) : ''
     };
   }
 
@@ -292,9 +298,8 @@
 
     var body = h('div', 'event-body');
     body.appendChild(infoRows(spec, l));
-    if (spec.description) body.appendChild(h('p', 'event-desc', spec.description));
 
-    if (hasDetails(e)) {
+    if (hasExpandableContent(e)) {
       var btn = h('button', 'event-details-btn');
       btn.type = 'button';
       btn.setAttribute('data-event-id', e.id || '');
@@ -316,7 +321,12 @@
     card.appendChild(head);
     var body = h('div', 'event-body');
     body.appendChild(infoRows({ location: '', mapHref: '', date: '' }, l));
-    body.appendChild(h('p', 'event-desc', ui('For any other event or seva not listed above. Please contact the Trust for details.')));
+    var btn = h('button', 'event-details-btn');
+    btn.type = 'button';
+    btn.appendChild(h('span', '', ui('View details')));
+    btn.appendChild(h('span', 'event-details-arrow', '›'));
+    btn.addEventListener('click', function () { openModal(OTHER_ID, btn); });
+    body.appendChild(btn);
     card.appendChild(body);
     return card;
   }
@@ -418,9 +428,19 @@
   }
 
   function fillModal() {
+    var l = lang();
+    if (openEventId === OTHER_ID) {
+      modal.querySelector('#eventModalTitle').textContent = ui('OTHER EVENT');
+      modal.querySelector('.event-modal-close').setAttribute('aria-label', ui('Close'));
+      var otherBody = modal.querySelector('.event-modal-body');
+      otherBody.innerHTML = '';
+      otherBody.appendChild(infoRows({ location: '', mapHref: '', date: '' }, l));
+      otherBody.appendChild(h('p', 'event-desc', ui('For any other event or seva not listed above. Please contact the Trust for details.')));
+      return;
+    }
+
     var e = events.filter(function (x) { return x.id === openEventId; })[0];
     if (!e) { closeModal(); return; }
-    var l = lang();
     var spec = specFor(e, l);
     var header = window.getABASSEventHeader(e);
     var titleLabel = window.getABASSEventHeaderLabel(header, l);
