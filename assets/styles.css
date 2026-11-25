@@ -1364,6 +1364,123 @@ body.lang-ta .footer-col h4{ font-family:'Noto Sans Tamil',sans-serif; text-tran
   .footer-top{ gap:26px; }
 }
 
+/* ============ VISIBLE MULTILINGUAL HEADER ============
+   Keep the complete page navigation in the header at every viewport size.
+   Only the language choices use a dropdown. */
+.header-inner{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto !important;
+  grid-template-areas:"brand actions" "nav nav" !important;
+  align-items:center;
+  gap:8px 20px !important;
+  padding:12px clamp(12px,2vw,30px) !important;
+}
+.header-inner > .brand{grid-area:brand;}
+.header-inner > .main-nav{
+  grid-area:nav;
+  display:flex !important;
+  width:100%; max-width:none; min-width:0;
+  justify-self:stretch; justify-content:flex-start;
+  flex-wrap:wrap; white-space:normal;
+  column-gap:clamp(14px,2vw,30px); row-gap:2px;
+}
+.main-nav a{
+  white-space:normal; overflow-wrap:anywhere;
+  font-size:clamp(13px,1vw,15px) !important;
+  line-height:1.35;
+}
+.header-inner > .header-actions{
+  grid-area:actions; margin:0 !important;
+  justify-content:flex-end; flex-wrap:nowrap; gap:10px;
+}
+.header-actions > .btn{display:inline-flex !important; padding:9px 12px !important; font-size:13px !important;}
+.nav-toggle{display:none !important;}
+.lang-switch{
+  position:relative; display:block; overflow:visible;
+  border:0; border-radius:0; background:transparent; flex:none;
+}
+.lang-trigger{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border:1px solid var(--line); border-radius:6px;
+  background:var(--paper); color:var(--navy); font-size:13px; font-weight:600;
+  white-space:nowrap;
+}
+.lang-chevron{font-size:16px; line-height:1;}
+.lang-menu{
+  display:none; position:absolute; z-index:130; top:calc(100% + 6px); right:0;
+  min-width:160px; padding:6px; border:1px solid var(--line); border-radius:8px;
+  background:var(--paper); box-shadow:var(--shadow);
+}
+.lang-switch.is-open .lang-menu{display:grid;}
+.lang-menu .lang-btn{
+  width:100%; padding:9px 10px; border-radius:5px; text-align:left;
+  color:var(--ink); font-size:14px; font-weight:500;
+}
+.lang-menu .lang-btn:hover,.lang-menu .lang-btn.active{background:var(--navy);color:var(--cream);}
+.lang-menu .lang-btn[aria-current="true"]::after{content:" ✓";float:right;}
+body.lang-ta .main-nav,body.lang-ml .main-nav{gap:clamp(14px,2vw,30px);}
+body.lang-ta .main-nav a,body.lang-ml .main-nav a{font-size:clamp(13px,1vw,15px) !important;}
+@media(max-width:760px){
+  .header-inner{grid-template-columns:minmax(0,1fr) auto !important;gap:7px 10px !important;padding:10px 12px !important;}
+  .brand img{height:44px;}
+  .brand-text .name{font-size:17px;}
+  .brand-text .sub{font-size:9px;}
+  .header-inner > .main-nav{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;row-gap:0;}
+  .main-nav a{padding:7px 0;font-size:13px !important;}
+  .header-inner > .header-actions{gap:6px;}
+  .header-actions > .btn{max-width:116px;white-space:normal;text-align:center;line-height:1.2;padding:8px !important;font-size:11.5px !important;}
+  .lang-trigger{padding:8px 9px;font-size:12px;}
+}
+@media(max-width:390px){
+  .header-inner{padding:8px !important;}
+  .brand{gap:4px;}
+  .brand img{height:38px;}
+  .brand-text .sub{display:none;}
+  .header-inner > .header-actions{gap:4px;}
+  .header-actions > .btn{max-width:96px;font-size:10.5px !important;}
+}
+
+/* Desktop header follows the reference: branding, links, languages and
+   donation action share one aligned row. The row wraps into two levels only
+   when the available width requires it. */
+@media(min-width:1321px){
+  .header-inner{
+    display:grid !important;
+    grid-template-columns:minmax(205px,245px) minmax(0,1fr) max-content !important;
+    grid-template-areas:none !important;
+    gap:clamp(10px,1.1vw,22px) !important;
+    padding:14px clamp(18px,1.45vw,30px) !important;
+  }
+  .header-inner > .brand{grid-area:auto;}
+  .header-inner > .main-nav{
+    grid-area:auto; width:auto; max-width:none; justify-self:stretch;
+    display:flex !important; flex-wrap:nowrap; justify-content:space-between;
+    gap:clamp(12px,1.35vw,26px); white-space:nowrap;
+  }
+  .main-nav a{font-size:clamp(12.5px,.92vw,16px) !important;white-space:nowrap;}
+  .header-inner > .header-actions{grid-area:auto;gap:12px !important;}
+  .lang-trigger{display:none;}
+  .lang-switch{display:flex;align-items:center;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--paper);}
+  .lang-menu{display:flex !important;position:static;z-index:auto;min-width:0;padding:0;border:0;border-radius:22px;background:transparent;box-shadow:none;}
+  .lang-menu .lang-btn{width:auto;padding:8px 9px;font-size:clamp(11.5px,.82vw,14px);white-space:nowrap;}
+  .lang-menu .lang-btn[aria-current="true"]::after{content:none;}
+  .header-actions > .btn{padding:10px 13px !important;font-size:clamp(12px,.88vw,15px) !important;}
+  body.lang-ta .main-nav,body.lang-ml .main-nav{gap:clamp(12px,1.2vw,22px);}
+  body.lang-ta .main-nav a,body.lang-ml .main-nav a{font-size:clamp(12px,.86vw,15px) !important;}
+}
+/* Prevent the Latin brand name and home heading from being clipped by
+   narrow flex/grid sizing or tight font line boxes in regional scripts. */
+.brand-text{flex:0 0 auto;}
+.brand-text .name{display:block;width:max-content;max-width:none;white-space:nowrap;overflow:visible;}
+.hero-content{min-width:0;overflow:visible;}
+.hero h1{display:block;width:max-content;max-width:none;white-space:nowrap;overflow:visible;line-height:1.22;padding:.02em .16em .12em 0;}
+@media(max-width:1320px){
+  .lang-trigger{display:flex;}
+  .lang-switch{display:block;}
+  .lang-menu{display:none !important;position:absolute;}
+  .lang-switch.is-open .lang-menu{display:grid !important;}
+}
+
 /* ============ MOBILE QUICK SPONSOR & DONATE BAR ============ */
 .mobile-quick-sponsor{ display:none; }
 @media (max-width: 760px){
@@ -1609,4 +1726,63 @@ body.lang-ml .nav-toggle{
   body.lang-ml .header-actions{ gap:3px; }
   body.lang-ml .lang-switch button{ padding:5px 3px; font-size:10px; }
   body.lang-ml .header-actions > .btn{ max-width:82px; padding:5px; font-size:10px; }
+}
+
+/* Final header overrides: match the reference's single desktop row. */
+@media(min-width:1321px){
+  body .header-inner{display:grid !important;grid-template-columns:minmax(205px,245px) minmax(0,1fr) max-content !important;grid-template-areas:none !important;gap:clamp(10px,1.1vw,22px) !important;padding:14px clamp(18px,1.45vw,30px) !important;}
+  body .header-inner > .brand{grid-area:auto;}
+  body .header-inner > .main-nav{grid-area:auto;display:flex !important;width:auto;max-width:none;justify-self:stretch;justify-content:space-between;flex-wrap:nowrap;white-space:nowrap;gap:clamp(12px,1.2vw,22px);}
+  body .main-nav a{font-size:clamp(12px,.86vw,15px) !important;white-space:nowrap;}
+  body .header-inner > .header-actions{grid-area:auto;gap:12px !important;margin:0 !important;}
+  body .lang-trigger{display:none;}
+  body .lang-switch{display:flex;align-items:center;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--paper);}
+  body .lang-menu{display:flex !important;position:static;min-width:0;padding:0;border:0;border-radius:22px;background:transparent;box-shadow:none;}
+  body .lang-menu .lang-btn{width:auto;padding:8px 8px;font-size:clamp(11px,.75vw,14px);white-space:nowrap;}
+  body .lang-menu .lang-btn[aria-current="true"]::after{content:none;}
+  body .header-actions > .btn{display:inline-flex !important;padding:10px 12px !important;font-size:clamp(12px,.82vw,15px) !important;}
+  body.lang-ta .main-nav,body.lang-ml .main-nav{display:flex !important;gap:clamp(11px,1vw,18px) !important;}
+  body.lang-ta .main-nav a,body.lang-ml .main-nav a{font-size:clamp(11px,.76vw,14px) !important;}
+  body.lang-ml .header-inner{display:grid !important;}
+}
+@media(max-width:1320px){
+  body .lang-trigger{display:flex;}
+  body .lang-switch{display:block;}
+  body .lang-menu{display:none !important;position:absolute;}
+  body .lang-switch.is-open .lang-menu{display:grid !important;}
+}
+
+/* The language selector stays a single dropdown button at every width. */
+body .lang-trigger{display:flex !important;}
+body .lang-switch{position:relative;display:block;overflow:visible;border:0;border-radius:0;background:transparent;}
+body .lang-menu{display:none !important;position:absolute;z-index:130;top:calc(100% + 6px);right:0;min-width:160px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--paper);box-shadow:var(--shadow);}
+body .lang-switch.is-open .lang-menu{display:grid !important;}
+body .lang-menu .lang-btn{width:100%;padding:9px 10px;border-radius:5px;text-align:left;color:var(--ink);font-size:14px;font-weight:500;}
+body .lang-menu .lang-btn:hover,body .lang-menu .lang-btn.active{background:var(--navy);color:var(--cream);}
+body .lang-menu .lang-btn[aria-current="true"]::after{content:" ✓";float:right;}
+@media(min-width:1321px){
+  body .header-inner > .main-nav{gap:clamp(12px,1.1vw,21px);}
+  body .main-nav a{font-size:clamp(12px,.83vw,15px) !important;}
+  body .header-inner > .header-actions{gap:clamp(8px,.8vw,14px) !important;}
+}
+/* Malayalam labels are substantially longer. Give the brand/actions their own
+   first row and let every navigation link use a second, non-overlapping row. */
+@media(min-width:1321px){
+  body.lang-ml .header-inner{
+    grid-template-columns:minmax(0,1fr) auto !important;
+    grid-template-areas:"brand actions" "nav nav" !important;
+    gap:6px 18px !important;
+    padding-top:10px !important;padding-bottom:10px !important;
+  }
+  body.lang-ml .header-inner > .brand{grid-area:brand;}
+  body.lang-ml .header-inner > .header-actions{grid-area:actions;}
+  body.lang-ml .header-inner > .main-nav{
+    grid-area:nav;display:flex !important;width:100%;justify-self:stretch;
+    flex-wrap:wrap;justify-content:flex-start;white-space:normal;
+    column-gap:clamp(16px,2vw,32px);row-gap:2px;
+  }
+  body.lang-ml .main-nav a{
+    font-size:14px !important;line-height:1.5;white-space:normal;
+    overflow-wrap:normal;
+  }
 }

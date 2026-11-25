@@ -160,6 +160,8 @@ window.ABASS_I18N = window.ABASS_I18N || {};
     });
     buttons.forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-lang') === lang);
+      if(b.getAttribute('data-lang') === lang){ b.setAttribute('aria-current', 'true'); }
+      else { b.removeAttribute('aria-current'); }
     });
     SUPPORTED_LANGS.forEach(function(l){
       if(l !== 'en'){ document.body.classList.toggle('lang-' + l, lang === l); }
@@ -183,7 +185,27 @@ window.ABASS_I18N = window.ABASS_I18N || {};
   };
 
   buttons.forEach(function(b){
-    b.addEventListener('click', function(){ window.applyLang(b.getAttribute('data-lang')); });
+    b.addEventListener('click', function(){
+      window.applyLang(b.getAttribute('data-lang'));
+      var switcher=b.closest('.lang-switch');
+      if(switcher){ switcher.classList.remove('is-open'); var trigger=switcher.querySelector('.lang-trigger'); if(trigger) trigger.setAttribute('aria-expanded','false'); }
+    });
+  });
+
+  document.querySelectorAll('.lang-switch').forEach(function(switcher){
+    var trigger=switcher.querySelector('.lang-trigger');
+    if(!trigger) return;
+    trigger.addEventListener('click',function(e){
+      e.stopPropagation();
+      var open=switcher.classList.toggle('is-open');
+      trigger.setAttribute('aria-expanded',open ? 'true' : 'false');
+    });
+    document.addEventListener('click',function(e){
+      if(!switcher.contains(e.target)){ switcher.classList.remove('is-open'); trigger.setAttribute('aria-expanded','false'); }
+    });
+    document.addEventListener('keydown',function(e){
+      if(e.key === 'Escape'){ switcher.classList.remove('is-open'); trigger.setAttribute('aria-expanded','false'); }
+    });
   });
 
   // Restore this tab's language choice; new tabs start in English.
