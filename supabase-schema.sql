@@ -35,6 +35,7 @@ create table if not exists public.events (
   location_en text,
   location_ta text,
   is_recurring boolean not null default false,
+  is_additional boolean not null default false,
   recurrence_rule text,
   published boolean not null default true,
   display_order integer not null default 0,
@@ -45,6 +46,7 @@ create table if not exists public.events (
 alter table public.events add column if not exists header_subtitle text;
 alter table public.events add column if not exists display_structure text;
 alter table public.events add column if not exists description_visible boolean;
+alter table public.events add column if not exists is_additional boolean not null default false;
 
 -- C. GALLERY ITEMS TABLE
 create table if not exists public.gallery_items (

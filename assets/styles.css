@@ -538,7 +538,7 @@ body.lang-ta .ts-value.legal{ font-family:'Noto Serif Tamil',serif; letter-spaci
 .cal-tab-panel.active{ display:block; opacity:1; transform:translateY(0); }
 
 /* Event Cards Grid */
-.event-cards-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:24px; margin-bottom:40px; }
+.event-cards-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); grid-auto-rows:1fr; gap:24px; margin-bottom:40px; }
 .event-card{
   background:rgba(255,255,255,0.04); border:1px solid rgba(228,200,136,0.25);
   border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
@@ -1588,7 +1588,7 @@ a:focus-visible, button:focus-visible, input:focus-visible{
 /* ============ SIMPLE EVENT CARDS (light theme) ============ */
 .event-cards-grid .event-card{
   background:var(--paper); border:1px solid var(--line); border-radius:14px;
-  box-shadow:none; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:none; display:flex; flex-direction:column; height:100%; overflow:hidden;
   transition:transform .25s ease, box-shadow .25s ease;
 }
 .event-cards-grid .event-card:hover{ transform:translateY(-4px); box-shadow:var(--shadow); border-color:var(--gold); }

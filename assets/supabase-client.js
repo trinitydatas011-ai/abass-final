@@ -134,6 +134,22 @@
       return { data: [], fromFallback: false, failed: failed || !client };
     },
 
+    getAdditionalEvents: async function () {
+      if (!client) return { data: [], error: null };
+      try {
+        var res = await client
+          .from('events')
+          .select('id, title_en, start_date, end_date, date_display_en, recurrence_rule, is_recurring, location_en, description_en, details_en, published, display_order')
+          .eq('published', true)
+          .eq('is_additional', true)
+          .order('display_order', { ascending: true });
+        if (res.error) return { data: [], error: res.error };
+        return { data: res.data || [], error: null };
+      } catch (err) {
+        return { data: [], error: err };
+      }
+    },
+
     // --- GALLERY ---
     getGallery: async function (opts) {
       opts = opts || {};

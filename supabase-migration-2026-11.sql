@@ -11,6 +11,7 @@
 -- ------------------------------------------------------------
 alter table public.events
   add column if not exists slug text,
+  add column if not exists is_additional boolean not null default false,
   add column if not exists title_en text,
   add column if not exists title_ta text,
   add column if not exists header_subtitle text,
@@ -42,6 +43,11 @@ alter table public.events
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
+update public.events set is_additional = false where is_additional is null;
+alter table public.events
+  alter column is_additional set default false,
+  alter column is_additional set not null;
+
 update public.events
 set display_structure = 'title-only'
 where display_structure is null;
@@ -57,6 +63,31 @@ where description_visible is null;
 alter table public.events
   alter column description_visible set default true,
   alter column description_visible set not null;
+
+-- Ensure the three standard public event cards are real Admin-managed rows.
+-- Existing rows are left intact, so administrators keep their edits.
+insert into public.events
+  (slug, title_en, title_ta, header_subtitle, display_structure, description_visible,
+   is_recurring, recurrence_rule, start_date, end_date, date_display_en, date_display_ta,
+   location_en, location_ta, published, is_additional, display_order)
+select 'annadhaanam', 'EVERY MONTH ANNADHAANAM', 'மாதாந்திர அன்னதானம்', '2ND SAT', 'subtitle-above-title', true,
+       true, 'Every 2nd Saturday', null, null, 'Every 2nd Saturday', 'ஒவ்வொரு மாத 2வது சனி',
+       'Pallavaram, Chennai', 'பல்லாவரம், சென்னை', true, false, 1
+where not exists (select 1 from public.events where slug = 'annadhaanam');
+
+insert into public.events
+  (slug, title_en, title_ta, description_visible, is_recurring, start_date, end_date,
+   date_display_en, date_display_ta, location_en, location_ta, published, is_additional, display_order)
+select 'padi', 'YEARLY PADI POOJA', 'ஆண்டு படி பூஜை', false, false, '2026-12-12', '2026-12-12',
+       '12 Dec 2026', '12 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', true, false, 3
+where not exists (select 1 from public.events where slug = 'padi');
+
+insert into public.events
+  (slug, title_en, title_ta, description_visible, is_recurring, start_date, end_date,
+   date_display_en, date_display_ta, location_en, location_ta, published, is_additional, display_order)
+select 'vilakku', 'YEARLY VILAKKU POOJA', 'ஆண்டு விளக்கு பூஜை', false, false, '2026-12-19', '2026-12-19',
+       '19 Dec 2026', '19 டிச 2026', 'Zamin Pallavaram, Chennai', 'ஜமீன் பல்லாவரம், சென்னை', true, false, 4
+where not exists (select 1 from public.events where slug = 'vilakku');
 
 -- Hide the two card descriptions without deleting their stored text.
 update public.events

@@ -29,6 +29,9 @@
   function dbErrorMessage(err, what) {
     var msg = (err && err.message) ? err.message : String(err);
     var code = (err && err.code) || '';
+    if (what === 'event' && /is_additional/i.test(msg)) {
+      return 'Could not save event: public.events is missing is_additional or its Supabase schema cache is stale. Run supabase-migration-events-is-additional.sql in the SQL Editor for the project configured in this browser, then reload the Admin Portal. (' + msg + ')';
+    }
     if (what === 'event' && (code === 'PGRST204' || code === '42703' || /schema cache|column/i.test(msg))) {
       return 'Could not save event: Supabase rejected a column in public.events. Run supabase-migration-2026-11.sql in the SQL Editor for the project configured in this browser, then refresh its schema cache and reload the Admin Portal. No event was saved. (' + msg + ')';
     }
@@ -469,6 +472,7 @@
 
       tr.innerHTML =
         '<td data-label="Event Title"><strong>' + escapeHtml(e.title_en) + '</strong>' +
+          (e.is_additional ? '<br><small class="status-pill active">Additional dropdown</small>' : '') +
           (e.header_subtitle ? '<br><small style="color:var(--admin-muted);">' + escapeHtml(e.header_subtitle) + '</small>' : '') +
           '<br><small style="color:var(--admin-muted);">' + escapeHtml(e.title_ta || '') + '</small></td>' +
         '<td data-label="Schedule">' + (e.is_recurring ? '<span class="status-pill active" style="margin-right:6px;">Recurring</span>' : '') + escapeHtml(dateText) + '</td>' +
@@ -511,6 +515,7 @@
         document.getElementById('eventDescTa').value = item.description_ta || '';
         document.getElementById('eventDescriptionVisible').checked = item.description_visible !== false;
         document.getElementById('eventIsRecurring').checked = !!item.is_recurring;
+        document.getElementById('eventIsAdditional').checked = !!item.is_additional;
         document.getElementById('eventRecurrenceRule').value = item.recurrence_rule || '';
         document.getElementById('eventStartDate').value = item.start_date || '';
         document.getElementById('eventEndDate').value = item.end_date || '';
@@ -533,6 +538,7 @@
         document.getElementById('eventDisplayOrder').value = item.display_order || 0;
       }
     } else {
+      document.getElementById('eventIsAdditional').checked = false;
       document.getElementById('eventPublished').checked = true;
       document.getElementById('eventDisplayOrder').value = state.events.length + 1;
     }
@@ -589,6 +595,7 @@
       description_ta: document.getElementById('eventDescTa').value.trim(),
       description_visible: document.getElementById('eventDescriptionVisible').checked,
       is_recurring: isRecurring,
+      is_additional: document.getElementById('eventIsAdditional').checked,
       recurrence_rule: isRecurring ? document.getElementById('eventRecurrenceRule').value.trim() : null,
       start_date: isRecurring ? null : (document.getElementById('eventStartDate').value || null),
       end_date: isRecurring ? null : (document.getElementById('eventEndDate').value || null),
@@ -619,13 +626,15 @@
     try {
       var res;
       if (id) {
-        res = await client.from('events').update(record).eq('id', id);
+        res = await client.from('events').update(record).eq('id', id).select('id').maybeSingle();
       } else {
-        res = await client.from('events').insert([record]);
+        res = await client.from('events').insert([record]).select('id').single();
       }
 
       if (res.error) {
         alert(dbErrorMessage(res.error, 'event'));
+      } else if (!res.data || !res.data.id) {
+        alert(id ? 'No event was updated. It may have been deleted, or your account may not have permission to edit it.' : 'The event was not inserted. Check your Admin permissions and try again.');
       } else {
         showToast(id ? 'Event updated successfully.' : 'Event added successfully.');
         document.getElementById('eventModal').classList.remove('open');
@@ -646,9 +655,11 @@
     if (!client) return;
 
     try {
-      var res = await client.from('events').delete().eq('id', id);
+      var res = await client.from('events').delete().eq('id', id).select('id');
       if (res.error) {
         alert('Failed to delete event: ' + res.error.message);
+      } else if (!res.data || !res.data.length) {
+        alert('No event was deleted. It may already have been removed, or your account may not have permission to delete it.');
       } else {
         showToast('Event deleted from Supabase.');
         await loadAllData();

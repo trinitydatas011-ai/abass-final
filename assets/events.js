@@ -30,6 +30,13 @@
     { id: 'predefined-monthly-pooja', title: 'MONTHLY POOJA', aliases: [] },
     { id: 'predefined-yearly-vilakku-pooja', title: 'YEARLY VILAKKU POOJA', aliases: [] }
   ];
+  // Keep the three public event cards visible when the local Supabase
+  // connection has no scheduled rows. Live admin records replace these by title.
+  var DEFAULT_CARD_EVENTS = [
+    { id: 'default-monthly-annadhaanam', slug: 'annadhaanam', title_en: 'MONTHLY ANNADHAANAM', is_recurring: true, recurrence_rule: 'Every 2nd Saturday', location_en: 'Pallavaram, Chennai' },
+    { id: 'default-yearly-padi-pooja', title_en: 'YEARLY PADI POOJA', slug: 'padi', start_date: '2026-12-12', location_en: 'Zamin Pallavaram, Chennai' },
+    { id: 'default-yearly-vilakku-pooja', title_en: 'YEARLY VILAKKU POOJA', slug: 'vilakku', start_date: '2026-12-19', location_en: 'Zamin Pallavaram, Chennai' }
+  ];
 
   /* ---------------------------------------------------------------
      Built-in expanded descriptions (correction 10). Used when the
@@ -69,7 +76,7 @@
   /* ---------------------------------------------------------------
      Helpers
      --------------------------------------------------------------- */
-  var events = [];
+  var events = DEFAULT_CARD_EVENTS.slice();
   var signature = '';
   var loaded = false;
   var openEventId = null;
@@ -358,7 +365,7 @@
     if (!grid) return;
     var l = lang();
     grid.innerHTML = '';
-    events.forEach(function (e) { grid.appendChild(buildCard(e, l)); });
+    events.forEach(function (e) { if (!e.is_additional) grid.appendChild(buildCard(e, l)); });
     grid.appendChild(buildOtherCard(l));
   }
 
@@ -379,6 +386,21 @@
 
   function normalizeTitle(title) {
     return String(title || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function withDefaultCardEvents(list) {
+    var scheduled = DEFAULT_CARD_EVENTS.map(function (fallback) {
+      return list.filter(function (event) {
+        return !event.is_additional && ((event.slug && event.slug === fallback.slug) || normalizeTitle(event.title_en) === normalizeTitle(fallback.title_en));
+      })[0] || fallback;
+    });
+    list.forEach(function (event) {
+      var alreadyIncluded = scheduled.some(function (item) {
+        return item.id === event.id || (item.slug && event.slug && item.slug === event.slug);
+      });
+      if (!alreadyIncluded) scheduled.push(event);
+    });
+    return scheduled;
   }
 
   function isPredefinedEvent(e) {
@@ -424,13 +446,18 @@
     placeholder.textContent = ui('Select Event');
     formSelect.appendChild(placeholder);
 
-    PREDEFINED_DONATION_EVENTS.forEach(function (item) {
-      addOption(formSelect, item.id, predefinedOptionLabels(item), l);
+    events.forEach(function (e) {
+      if (!e.id || !e.title_en) return;
+      addOption(formSelect, e.id, optionLabels(e), l);
     });
 
-    events.forEach(function (e) {
-      if (!e.id || !e.title_en || isPredefinedEvent(e)) return;
-      addOption(formSelect, e.id, optionLabels(e), l);
+    PREDEFINED_DONATION_EVENTS.forEach(function (item) {
+      var alreadyListed = events.some(function (event) {
+        return [item.title].concat(item.aliases).some(function (knownTitle) {
+          return normalizeTitle(event.title_en) === normalizeTitle(knownTitle);
+        });
+      });
+      if (!alreadyListed) addOption(formSelect, item.id, predefinedOptionLabels(item), l);
     });
 
     if (keep) formSelect.value = keep;
@@ -486,6 +513,31 @@
       otherBody.innerHTML = '';
       otherBody.appendChild(infoRows({ location: '', mapHref: '', date: '' }, l));
       otherBody.appendChild(h('p', 'event-desc', ui('For any other event or seva not listed above. Please contact the Trust for details.')));
+      var picker = h('div', 'other-event-picker');
+      var label = h('label', '', ui('Additional events'));
+      label.setAttribute('for', 'otherEventSelect');
+      picker.appendChild(label);
+      var select = h('select', 'other-event-select');
+      select.id = 'otherEventSelect';
+      select.appendChild(new Option(ui('Choose an event'), ''));
+      picker.appendChild(select);
+      var message = h('p', 'other-event-empty', ui('Loading additional events…'));
+      message.setAttribute('aria-live', 'polite');
+      picker.appendChild(message);
+      var selected = h('div', 'other-event-selected');
+      selected.hidden = true;
+      selected.appendChild(h('h3', 'other-event-title'));
+      var info = h('dl', 'other-event-info');
+      info.appendChild(h('dt', '', ui('Date')));
+      info.appendChild(h('dd', 'other-event-date'));
+      info.appendChild(h('dt', '', ui('Location')));
+      info.appendChild(h('dd', 'other-event-location'));
+      selected.appendChild(info);
+      selected.appendChild(h('p', 'other-event-description'));
+      selected.appendChild(h('div', 'other-event-full-details'));
+      picker.appendChild(selected);
+      otherBody.appendChild(picker);
+      loadOtherEventOptions(select, message, selected);
       return;
     }
 
@@ -517,6 +569,46 @@
       mapWrap.appendChild(frame);
       body.appendChild(mapWrap);
     }
+  }
+
+  function additionalEventDate(e) {
+    if (e.start_date) {
+      var start = cleanDateLabel(e.start_date, lang());
+      var end = e.end_date ? cleanDateLabel(e.end_date, lang()) : '';
+      return end && end !== start ? start + ' – ' + end : start;
+    }
+    return e.date_display_en || e.recurrence_rule || (e.is_recurring ? ui('Recurring') : ui('Date to be announced'));
+  }
+
+  async function loadOtherEventOptions(select, message, selected) {
+    if (!window.ABASS_API || !window.ABASS_API.getAdditionalEvents) {
+      message.textContent = ui('No additional events available at the moment.');
+      return;
+    }
+    var result;
+    try { result = await window.ABASS_API.getAdditionalEvents(); }
+    catch (err) { result = { data: [], error: err }; }
+    if (!document.body.contains(select)) return;
+    var list = result && Array.isArray(result.data) ? result.data : [];
+    if (result && result.error) console.warn('Unable to load additional events:', result.error);
+    list.forEach(function (event) {
+      var option = new Option(event.title_en || '', event.id);
+      select.appendChild(option);
+    });
+    message.textContent = list.length ? '' : ui('No additional events available at the moment.');
+    message.hidden = !!list.length;
+    select.addEventListener('change', function () {
+      var event = list.filter(function (item) { return String(item.id) === select.value; })[0];
+      if (!event) { selected.hidden = true; return; }
+      selected.querySelector('.other-event-title').textContent = event.title_en || '';
+      selected.querySelector('.other-event-date').textContent = additionalEventDate(event);
+      selected.querySelector('.other-event-location').textContent = event.location_en || '';
+      selected.querySelector('.other-event-description').textContent = event.description_en || ui('No description provided.');
+      var full = selected.querySelector('.other-event-full-details');
+      full.innerHTML = '';
+      if (event.details_en) full.appendChild(renderDetails({ text: event.details_en, translate: false }, lang()));
+      selected.hidden = false;
+    });
   }
 
   function openModal(id, trigger) {
@@ -563,6 +655,7 @@
     if (res && res.failed && loaded) return;
 
     var list = res && Array.isArray(res.data) ? res.data : [];
+    list = withDefaultCardEvents(list);
     var sig = JSON.stringify(list);
     if (loaded && sig === signature) return;
     signature = sig;
