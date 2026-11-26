@@ -123,9 +123,8 @@ body.lang-ta .brand-text .sub{ font-family:'Noto Sans Tamil',sans-serif; letter-
 
 .header-actions{ display:flex; flex-direction:row; align-items:center; gap:14px; flex-wrap:nowrap; min-width:0; white-space:nowrap; }
 
-/* Tamil labels run noticeably longer than English, so the nav needs
-   tighter spacing/sizing and should switch to the hamburger menu sooner
-   to avoid the items crowding or overlapping the language/donate buttons. */
+/* Tamil labels run longer than English; language-specific spacing keeps the
+   desktop header comfortable while the shared narrow layout wraps the links. */
 body.lang-ta .main-nav{ gap:clamp(3px,.35vw,6px); }
 body.lang-ta .main-nav a{ font-size:13px; }
 body.lang-ta .header-actions{ gap:12px; }
@@ -152,8 +151,6 @@ body.lang-ta .header-actions > .btn{ padding:9px 12px; font-size:12.5px; }
 .btn-outline:hover{ background:var(--navy); color:var(--cream); }
 .btn-outline-light{ border:1.5px solid rgba(251,246,236,0.55); color:var(--cream); background:transparent; }
 .btn-outline-light:hover{ background:rgba(251,246,236,0.12); }
-
-.nav-toggle{ display:none; }
 
 /* ============ HERO ============ */
 .hero{
@@ -1183,27 +1180,15 @@ body.lang-ta .footer-col h4{ font-family:'Noto Sans Tamil',sans-serif; text-tran
 .footer-seal img{ height:40px; width:auto; opacity:0.85; }
 
 /* ============ RESPONSIVE ============ */
-/* Tamil nav labels are longer than their English equivalents, so at
-   widths where the English menu still fits comfortably the Tamil menu
-   can run out of room and crowd/overlap the language switch and donate
-   button. Collapse to the hamburger menu earlier when Tamil is active. */
+/* Give longer Tamil labels room in the shared responsive header. */
 @media (max-width: 1380px){
-  body.lang-ta .main-nav{ display:none; }
-  body.lang-ta .nav-toggle{ display:flex; width:38px; height:38px; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:6px; }
   body.lang-ta .header-actions{ margin-left:auto; }
-  /* higher specificity than "body.lang-ta .main-nav" above, so opening
-     the hamburger still shows the menu while Tamil is selected */
-  body.lang-ta.mobile-nav-open .main-nav{ display:flex; }
 }
 @media (max-width: 1180px){
   .header-inner{ display:flex; position:relative; justify-content:space-between; gap:18px; }
-  .main-nav{ display:none; }
-  .nav-toggle{ display:flex; width:38px; height:38px; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:6px; }
   .header-actions{ flex-direction:row; align-items:center; gap:14px; flex-wrap:wrap; row-gap:8px; margin-left:auto; }
 }
 @media (max-width: 980px){
-  .main-nav{ display:none; }
-  .nav-toggle{ display:flex; width:38px; height:38px; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:6px; }
   .pillars{ grid-template-columns:repeat(2,1fr); }
   .event-cards-grid{ grid-template-columns:1fr 1fr; }
   .celebration-banner{ grid-template-columns:1fr; text-align:center; }
@@ -1394,7 +1379,6 @@ body.lang-ta .footer-col h4{ font-family:'Noto Sans Tamil',sans-serif; text-tran
   justify-content:flex-end; flex-wrap:nowrap; gap:10px;
 }
 .header-actions > .btn{display:inline-flex !important; padding:9px 12px !important; font-size:13px !important;}
-.nav-toggle{display:none !important;}
 .lang-switch{
   position:relative; display:block; overflow:visible;
   border:0; border-radius:0; background:transparent; flex:none;
@@ -1578,12 +1562,8 @@ a:focus-visible, button:focus-visible, input:focus-visible{
 .page-hero h1{color:var(--paper);font-size:clamp(34px,5vw,56px);margin-top:16px;line-height:1.1;}
 .page-hero p{max-width:68ch;color:rgba(251,246,236,.75);margin-top:16px;font-size:16px;}
 .breadcrumb{margin-top:24px;font-size:12px;color:rgba(251,246,236,.55);}
-.mobile-nav-open .main-nav{display:flex;position:absolute;left:14px;right:14px;top:100%;width:auto;max-width:none;justify-self:stretch;margin-top:8px;flex-direction:column;gap:0;background:var(--paper);border:1px solid var(--line);box-shadow:var(--shadow);padding:12px 18px;border-radius:10px;z-index:110;max-height:calc(100vh - 90px);overflow-y:auto;}
-.mobile-nav-open .main-nav a{padding:11px 0;width:100%;}
-.mobile-nav-open .main-nav a::after{display:none;}
-.nav-toggle svg{width:18px;height:18px;}
-@media(max-width:980px){.site-header{position:sticky}.header-inner{position:relative}.main-nav{display:none}.mobile-nav-open .main-nav{display:flex}.header-actions{margin-left:auto}.nav-toggle{order:3}}
-@media(max-width:620px){.page-hero{padding:64px 0 56px}.page-hero h1{font-size:36px}.page-hero p{font-size:15px}.header-actions{gap:8px}.lang-switch button{padding:7px 10px}.header-actions>.btn{display:none}.nav-toggle{display:flex!important}}
+@media(max-width:980px){.site-header{position:sticky}.header-inner{position:relative}.header-actions{margin-left:auto}}
+@media(max-width:620px){.page-hero{padding:64px 0 56px}.page-hero h1{font-size:36px}.page-hero p{font-size:15px}.header-actions{gap:8px}.lang-switch button{padding:7px 10px}.header-actions>.btn{display:none}}
 
 /* ============ SIMPLE EVENT CARDS (light theme) ============ */
 .event-cards-grid .event-card{
@@ -1674,15 +1654,6 @@ body.lang-ml .main-nav a{ font-size:11.5px; }
 body.lang-ml .lang-switch button{ padding:5px 4px; font-size:10.5px; }
 body.lang-ml .header-actions > .btn{ padding:7px; font-size:11px; }
 body.lang-ml .lang-switch{ flex:none; }
-body.lang-ml .nav-toggle{
-  flex:none;
-  width:38px;
-  height:38px;
-  align-items:center;
-  justify-content:center;
-  border:1px solid var(--line);
-  border-radius:6px;
-}
 
 @media (max-width: 1600px){
   body.lang-ml .header-inner{
@@ -1691,10 +1662,7 @@ body.lang-ml .nav-toggle{
     justify-content:space-between;
     gap:clamp(8px,1vw,18px);
   }
-  body.lang-ml .main-nav{ display:none; }
-  body.lang-ml .nav-toggle{ display:flex; }
   body.lang-ml .header-actions{ margin-left:auto; }
-  body.lang-ml.mobile-nav-open .main-nav{ display:flex; }
 }
 @media (max-width: 1380px){
   body.lang-ta .header-inner{
