@@ -1,3 +1,39 @@
+// ============ MOBILE SITE NAVIGATION ============
+(function(){
+  var header = document.querySelector('.header-inner');
+  var nav = header && header.querySelector('.main-nav');
+  var actions = header && header.querySelector('.header-actions');
+  if(!header || !nav || !actions) return;
+
+  var toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'mobile-nav-toggle';
+  toggle.setAttribute('aria-label', 'Open navigation menu');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-controls', 'site-main-nav');
+  toggle.innerHTML = '<span></span><span></span><span></span>';
+  nav.id = 'site-main-nav';
+  actions.insertBefore(toggle, actions.firstChild);
+
+  function setOpen(open){
+    header.classList.toggle('mobile-nav-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  }
+  toggle.addEventListener('click', function(){
+    setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+  });
+  nav.addEventListener('click', function(event){
+    if(event.target.closest('a')) setOpen(false);
+  });
+  document.addEventListener('keydown', function(event){
+    if(event.key === 'Escape') setOpen(false);
+  });
+  window.addEventListener('resize', function(){
+    if(window.innerWidth > 760) setOpen(false);
+  });
+})();
+
 // ============ HIDE EVENTS THAT HAVE ALREADY HAPPENED ============
 // Any element with data-until="YYYY-MM-DD" (last day of the event, inclusive)
 // is removed once that day has passed, so only upcoming events are offered.
