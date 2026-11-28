@@ -363,3 +363,30 @@ body.lang-kn .lang-switch{ flex:none; }
   .header-inner > .main-nav a{flex-basis:33.333%; font-size:11px !important;}
   .lang-trigger{padding:6px; font-size:10.5px;}
 }
+
+/* On phones, show the site's destinations only inside the hamburger menu. */
+@media (max-width:760px){
+  .header-inner > .main-nav,
+  body.lang-ta .header-inner > .main-nav,
+  body.lang-ml .header-inner > .main-nav,
+  body.lang-te .header-inner > .main-nav,
+  body.lang-kn .header-inner > .main-nav{
+    display:none !important;
+  }
+  .header-inner.mobile-nav-open > .main-nav,
+  body.lang-ta .header-inner.mobile-nav-open > .main-nav,
+  body.lang-ml .header-inner.mobile-nav-open > .main-nav,
+  body.lang-te .header-inner.mobile-nav-open > .main-nav,
+  body.lang-kn .header-inner.mobile-nav-open > .main-nav{
+    display:grid !important;grid-template-columns:1fr !important;
+    justify-content:stretch;align-items:stretch;gap:0 !important;
+    padding:8px 12px;background:var(--paper);border:1px solid var(--line);
+    border-radius:8px;box-shadow:var(--shadow);
+  }
+  .header-inner > .main-nav a{
+    display:block;min-width:0;width:100%;flex:none;
+    padding:11px 8px !important;border-bottom:1px solid var(--line);
+    text-align:left;white-space:normal;
+  }
+  .header-inner > .main-nav a:last-child{border-bottom:0;}
+}
